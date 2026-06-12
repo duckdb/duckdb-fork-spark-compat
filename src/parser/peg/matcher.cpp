@@ -873,7 +873,8 @@ private:
 		idx_t open_quote_idx = string_info.prefix_len - 1;
 		idx_t min_len = string_info.prefix_len + 1;
 
-		if (token_text.size() >= min_len && (token_text[open_quote_idx] == '\'' && token_text.back() == '\'') || (token_text[open_quote_idx] == '"' && token_text.back() == '"')) {
+		if (token_text.size() >= min_len && (token_text[open_quote_idx] == '\'' && token_text.back() == '\'') ||
+		    (token_text[open_quote_idx] == '"' && token_text.back() == '"')) {
 			state.token_index++;
 			state.UpdateMaxTokenIndex();
 			return true;
@@ -897,7 +898,8 @@ public:
 			return MatchResultType::FAIL;
 		}
 		state.tokens[state.token_index - 1].type = TokenType::NUMBER_LITERAL;
-		if (state.token_index < state.tokens.size() && SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text)) {
+		if (state.token_index < state.tokens.size() &&
+		    SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text)) {
 			state.UpdateMaxTokenIndex();
 			state.token_index++;
 		}
@@ -913,7 +915,8 @@ public:
 		if (!MatchNumberLiteral(state)) {
 			return nullptr;
 		}
-		if (state.token_index < state.tokens.size() && SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text)) {
+		if (state.token_index < state.tokens.size() &&
+		    SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text)) {
 			number_text = number_text + state.tokens[state.token_index].text;
 			state.UpdateMaxTokenIndex();
 			state.token_index++;

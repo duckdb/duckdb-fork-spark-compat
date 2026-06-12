@@ -167,8 +167,12 @@ TypeModifiers <- Parens(List(Expression)?)
 RowType <- RowOrStruct ColIdTypeList
 SetofType <- 'SETOF' Type
 UnionType <- 'UNION' ColIdTypeList
-ColIdTypeList <- Parens(List(ColIdType)) / AngleBrackets(List(ColIdColonType))
-MapType <- ('MAP' Parens(List(Type))) / ('MAP' AngleBrackets(List(Type)))
+ColIdTypeList <- ColIdParensTypeList / ColIdAngleBracketsTypeList
+ColIdParensTypeList <- Parens(List(ColIdType))
+ColIdAngleBracketsTypeList <- AngleBrackets(List(ColIdColonType))
+MapType <- MapParensListType / MapAngleBracketsListType
+MapParensListType <- 'MAP' Parens(List(Type))
+MapAngleBracketsListType <- 'MAP' AngleBrackets(List(Type))
 ColIdType <- ColId Type
 ColIdColonType <- ColId ':' Type
 ArrayBounds <- SquareBracketsArray / ArrayKeyword

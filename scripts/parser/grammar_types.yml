@@ -469,6 +469,8 @@ Expression:
     - CharacterSimpleType
     - QualifiedSimpleType
     - MapType
+    - MapParensListType
+    - MapAngleBracketsListType
     - RowType
     - GeometryType
     - VariantType
@@ -1340,6 +1342,8 @@ overrides:
   # common.gram
   ColIdType: "pair<Identifier, LogicalType>"
   ColIdTypeList: "child_list_t<LogicalType>"
+  ColIdParensTypeList: "child_list_t<LogicalType>"
+  ColIdAngleBracketsTypeList: "child_list_t<LogicalType>"
   # create_index.gram
   RelOption: "pair<Identifier, unique_ptr<ParsedExpression>>"
   # create_table.gram
@@ -1375,6 +1379,7 @@ overrides:
   ColumnComment: "string"
   ViewColumn: "string"
   ViewColumnList: "vector<string>"
+  ColIdColonType: "pair<string, LogicalType>"
 # ---------------------------------------------------------------------------
 # matcher.cpp rule overrides
 # ---------------------------------------------------------------------------
