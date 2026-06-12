@@ -24,9 +24,10 @@ TrueLiteral <- 'TRUE'
 FalseLiteral <- 'FALSE'
 CastExpression <- CastOrTryCast Parens(Expression 'AS' Type)
 CastOrTryCast <- 'CAST' / 'TRY_CAST'
-
-StarExpression <- (ColId '.')* '*' ExcludeList? ReplaceList? RenameList?
-ExcludeList <- 'EXCLUDE' ExcludeNameList / ExcludeNameSingle
+ColIdDot <- ColId '.'
+StarExpression <- ColIdDot* '*' ExcludeList? ReplaceList? RenameList?
+ExcludeList <- ExcludeOrExcept ExcludeNameList / ExcludeNameSingle
+ExcludeOrExcept <- 'EXCLUDE' / 'EXCEPT'
 ExcludeNameList <- Parens(List(ExcludeName))
 ExcludeNameSingle <- ExcludeName
 ExcludeName <- DottedIdentifier / ColIdOrString
@@ -195,7 +196,7 @@ InetOperator <- '>>=' / '<<='
 JsonOperator <- '->>'
 ListOperator <- '&&' / '@>' / '<@'
 StringOperator <- '^@' / '||'
-QualifiedOperator <- 'OPERATOR' Parens(AnyOp)
+QualifiedOperator <- 'OPERATOR' Parens(ColIdDot* AnyOp)
 AnyOp <- '!~~*' / '>>=' / '<<=' / '->>' / '!~~' / '~~*' / '~~~' / '!~' / '^@' / '||' / '&&' / '@>' / '<@' / '<=' / '>=' / '<>' / '!=' / '==' / '<<' / '>>' / '//' / '**' / '->' / '~~' / '+' / '-' / '*' / '/' / '%' / '^' / '<' / '>' / '=' / '&' / '|' / '~' / '!'
 # LEVEL 9
 BitwiseExpression <- AdditiveExpression (BitOperator AdditiveExpression)*
@@ -235,7 +236,7 @@ StepSliceBound <- ':' Expression?
 PostfixOperator <- '!'
 
 
-SpecialFunctionExpression <- CoalesceExpression / UnpackExpression / TryExpression / ColumnsExpression / ExtractExpression / TimestampDiffExpression / LambdaExpression / NullIfExpression / PositionExpression / RowExpression / SubstringExpression / TrimExpression
+SpecialFunctionExpression <- CoalesceExpression / UnpackExpression / TryExpression / ColumnsExpression / ExtractExpression / TimestampDiffExpression / LambdaExpression / NullIfExpression / PositionExpression / RowExpression / SubstringExpression / TrimExpression / OverlayExpression
 TimestampDiffExpression <- 'TIMESTAMPDIFF' Parens(ExtractArgument ',' Expression ',' Expression)
 CoalesceExpression <- 'COALESCE' Parens(List(Expression))
 UnpackExpression <- 'UNPACK' Parens(Expression)
@@ -252,13 +253,22 @@ RowExpressionAlias <- 'AS' ColId
 SubstringExpression <- 'SUBSTRING' Parens(SubstringArguments)
 SubstringArguments <- SubstringParameters / SubstringExpressionList
 SubstringExpressionList <- List(Expression)
-SubstringParameters <- Expression 'FROM' Expression 'FOR' Expression
+SubstringParameters <- Expression SubstringFromFor
+SubstringFromFor <- SubstringFromOptionalFor / SubstringFor
+SubstringFromOptionalFor <- FromExpression ForExpression?
+SubstringFor <- ForExpression
 TrimExpression <- 'TRIM' Parens(TrimDirection? TrimSource? List(Expression))
 TrimDirection <- TrimBoth / TrimLeading / TrimTrailing
 TrimBoth <- 'BOTH'
 TrimLeading <- 'LEADING'
 TrimTrailing <- 'TRAILING'
 TrimSource <- Expression? 'FROM'
+OverlayExpression <- 'OVERLAY' Parens(OverlayArguments)
+OverlayArguments <- OverlayParameters / OverlayExpressionList
+OverlayParameters <- Expression 'PLACING' Expression FromExpression ForExpression?
+FromExpression <- 'FROM' Expression
+ForExpression <- 'FOR' Expression
+OverlayExpressionList <- List(Expression)
 
 ExtractArgument <-
     YearKeyword / MonthKeyword / DayKeyword / HourKeyword / MinuteKeyword / SecondKeyword /
