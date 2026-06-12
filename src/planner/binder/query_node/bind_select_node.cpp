@@ -5,7 +5,6 @@
 #include "duckdb/function/aggregate/distributive_function_utils.hpp"
 #include "duckdb/function/function_binder.hpp"
 #include "duckdb/main/config.hpp"
-#include "duckdb/main/settings.hpp"
 #include "duckdb/parser/expression/columnref_expression.hpp"
 #include "duckdb/parser/expression/comparison_expression.hpp"
 #include "duckdb/parser/expression/conjunction_expression.hpp"
@@ -178,24 +177,6 @@ void Binder::PrepareModifiers(OrderBinder &order_binder, QueryNode &statement, B
 					bound_order->orders.emplace_back(order_type, null_order, std::move(constant_expr));
 					bound_modifier = std::move(bound_order);
 					break;
-				}
-			}
-			// Spark mode: when ALL is not reserved, ORDER BY ALL is parsed as a column reference.
-			// If no column named "all" exists, treat as ORDER BY ALL.
-			if (Settings::Get<SparkModeSetting>(context) && order.orders.size() == 1 &&
-			    order.orders[0].expression->GetExpressionClass() == ExpressionClass::COLUMN_REF) {
-				auto &colref = order.orders[0].expression->Cast<ColumnRefExpression>();
-				if (colref.column_names.size() == 1 && StringUtil::CIEquals(colref.column_names[0], "all")) {
-					auto matching = bind_context.GetMatchingBindings("all");
-					if (matching.empty()) {
-						auto order_type = config.ResolveOrder(context, order.orders[0].type);
-						auto null_order =
-						    config.ResolveNullOrder(context, order_type, order.orders[0].null_order);
-						auto constant_expr = make_uniq<BoundConstantExpression>(Value("ALL"));
-						bound_order->orders.emplace_back(order_type, null_order, std::move(constant_expr));
-						bound_modifier = std::move(bound_order);
-						break;
-					}
 				}
 			}
 #if 0
@@ -512,22 +493,6 @@ BoundStatement Binder::BindSelectNode(SelectNode &statement, BoundStatement from
 	}
 
 	auto &group_expressions = statement.groups.group_expressions;
-
-	// Spark mode: when ALL is not a reserved keyword, GROUP BY ALL is parsed as a column reference
-	// instead of the special GROUP BY ALL syntax. Detect this and convert to FORCE_AGGREGATES
-	// if no column named "all" actually exists in scope.
-	if (Settings::Get<SparkModeSetting>(context) && group_expressions.size() == 1 &&
-	    group_expressions[0]->GetExpressionClass() == ExpressionClass::COLUMN_REF) {
-		auto &colref = group_expressions[0]->Cast<ColumnRefExpression>();
-		if (colref.column_names.size() == 1 && StringUtil::CIEquals(colref.column_names[0], "all")) {
-			auto matching = bind_context.GetMatchingBindings("all");
-			if (matching.empty()) {
-				statement.aggregate_handling = AggregateHandling::FORCE_AGGREGATES;
-				group_expressions.clear();
-				statement.groups.grouping_sets.clear();
-			}
-		}
-	}
 	if (!group_expressions.empty()) {
 		// the statement has a GROUP BY clause, bind it
 		GroupBinder group_binder(*this, context, result.group_index, bind_state);
