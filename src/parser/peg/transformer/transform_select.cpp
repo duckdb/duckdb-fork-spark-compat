@@ -1179,7 +1179,7 @@ unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClause(PEGTran
 	if (result->expected_names.empty()) {
 		// push col1, col2, col3 (for Spark)
 		for (idx_t i = 0; i < result->values[0].size(); i++) {
-			result->expected_names.push_back("col" + to_string(i + 1));
+			result->expected_names.emplace_back("col" + to_string(i + 1));
 		}
 	}
 
@@ -1192,7 +1192,7 @@ unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClause(PEGTran
 }
 
 unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClauseNoParens(PEGTransformer &transformer,
-																   ParseResult &parse_result) {
+                                                                                 ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
 
 	auto expression_list = ExtractParseResultsFromList(list_pr.Child<ListParseResult>(1));

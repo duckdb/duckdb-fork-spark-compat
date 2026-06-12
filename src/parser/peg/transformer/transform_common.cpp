@@ -288,8 +288,9 @@ string PEGTransformerFactory::TransformCharacterType(PEGTransformer &transformer
 	return "VARCHAR";
 }
 
-unique_ptr<ParsedExpression> PEGTransformerFactory::TransformMapType(PEGTransformer &transformer,
-                                                                     const vector<LogicalType> &type) {
+// MapParensListType <- 'MAP' Parens(List(Type)) — duckdb-style MAP(k, v)
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformMapParensListType(PEGTransformer &transformer,
+                                                                               const vector<LogicalType> &type) {
 	if (type.size() != 2) {
 		throw ParserException("Map type needs exactly two entries, key and value type.");
 	}
@@ -297,6 +298,12 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformMapType(PEGTransfor
 	map_children.push_back(UnboundType::GetTypeExpression(type[0])->Copy());
 	map_children.push_back(UnboundType::GetTypeExpression(type[1])->Copy());
 	return make_uniq<TypeExpression>(Identifier("MAP"), std::move(map_children));
+}
+
+// MapAngleBracketsListType <- 'MAP' AngleBrackets(List(Type)) — spark-style MAP<k, v>
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformMapAngleBracketsListType(PEGTransformer &transformer,
+                                                                                      const vector<LogicalType> &type) {
+	return TransformMapParensListType(transformer, type);
 }
 
 unique_ptr<ParsedExpression>
@@ -344,10 +351,22 @@ PEGTransformerFactory::TransformUnionType(PEGTransformer &transformer,
 	return make_uniq<TypeExpression>(Identifier("UNION"), std::move(union_children));
 }
 
+// ColIdParensTypeList <- Parens(List(ColIdType)) — duckdb-style STRUCT(name type, ...)
 child_list_t<LogicalType>
-PEGTransformerFactory::TransformColIdTypeList(PEGTransformer &transformer,
-                                              const vector<pair<Identifier, LogicalType>> &col_id_type) {
+PEGTransformerFactory::TransformColIdParensTypeList(PEGTransformer &transformer,
+                                                    const vector<pair<Identifier, LogicalType>> &col_id_type) {
 	return col_id_type;
+}
+
+// ColIdAngleBracketsTypeList <- AngleBrackets(List(ColIdColonType)) — spark-style STRUCT<name: type, ...>
+child_list_t<LogicalType>
+PEGTransformerFactory::TransformColIdAngleBracketsTypeList(PEGTransformer &transformer,
+                                                           const vector<pair<string, LogicalType>> &col_id_colon_type) {
+	child_list_t<LogicalType> result;
+	for (auto &entry : col_id_colon_type) {
+		result.emplace_back(Identifier(entry.first), entry.second);
+	}
+	return result;
 }
 
 pair<Identifier, LogicalType> PEGTransformerFactory::TransformColIdType(PEGTransformer &transformer,
@@ -356,12 +375,13 @@ pair<Identifier, LogicalType> PEGTransformerFactory::TransformColIdType(PEGTrans
 	return make_pair(Identifier(col_id), type);
 }
 
-unique_ptr<ParsedExpression> PEGTransformerFactory::TransformBitType(
-    PEGTransformer &transformer,
-    // NOLINTNEXTLINE(performance-unnecessary-value-param): fixed generated signature; BIT takes no modifiers
-    vector<unique_ptr<ParsedExpression>> expression) {
+// The by-value parameter is the fixed generated signature; BIT takes no modifiers so it is intentionally unused.
+// NOLINTBEGIN(performance-unnecessary-value-param)
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformBitType(PEGTransformer &transformer,
+                                                                     vector<unique_ptr<ParsedExpression>> expression) {
 	return make_uniq<TypeExpression>(Identifier("BIT"), vector<unique_ptr<ParsedExpression>> {});
 }
+// NOLINTEND(performance-unnecessary-value-param)
 
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformIntervalWithoutSpecifier(PEGTransformer &transformer) {
 	return make_uniq<TypeExpression>(Identifier("INTERVAL"), vector<unique_ptr<ParsedExpression>> {});
@@ -412,13 +432,11 @@ DatePartSpecifier PEGTransformerFactory::TransformMillisecondKeyword(PEGTransfor
 	return DatePartSpecifier::MILLISECONDS;
 }
 
+// ColIdColonType <- ColId ':' Type
 pair<string, LogicalType> PEGTransformerFactory::TransformColIdColonType(PEGTransformer &transformer,
-                                                                         ParseResult &parse_result) {
-	// ColIdColonType <- ColId ':' Type
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto colid = transformer.Transform<string>(list_pr.Child<ListParseResult>(0));
-	auto type = transformer.Transform<LogicalType>(list_pr.Child<ListParseResult>(2));
-	return make_pair(colid, type);
+                                                                         const Identifier &col_id,
+                                                                         const LogicalType &type) {
+	return make_pair(col_id.GetIdentifierName(), type);
 }
 
 DatePartSpecifier PEGTransformerFactory::TransformMicrosecondKeyword(PEGTransformer &transformer) {
@@ -537,72 +555,71 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TryNegateValue(const Constan
 }
 
 unique_ptr<ParsedExpression> CastSparkNumberWithPostfix(string &str) {
-	auto postfix = std::toupper(str[str.size()-1]);
-	auto number_str = str.substr(0, str.size()-1);
+	auto postfix = std::toupper(str[str.size() - 1]);
+	auto number_str = str.substr(0, str.size() - 1);
 	string_t number_str_val(number_str);
 	switch (postfix) {
-		case 'L': {
-			int64_t bigint_value = Cast::Operation<string_t, int64_t>(number_str_val);
-			return make_uniq<ConstantExpression>(Value::BIGINT(bigint_value));
-		}
-		case 'S': {
-			int16_t smallint_value = Cast::Operation<string_t, int16_t>(number_str_val);
-			return make_uniq<ConstantExpression>(Value::SMALLINT(smallint_value));
-		}
-		case 'Y': {
-			int8_t tinyint_value = Cast::Operation<string_t, int8_t>(number_str_val);
-			return make_uniq<ConstantExpression>(Value::TINYINT(tinyint_value));
-		}
-		case 'D': {
-			if (std::toupper(str[str.size() - 2]) == 'B') {
-				auto number_str_bd = str.substr(0, str.size() - 2);
+	case 'L': {
+		int64_t bigint_value = Cast::Operation<string_t, int64_t>(number_str_val);
+		return make_uniq<ConstantExpression>(Value::BIGINT(bigint_value));
+	}
+	case 'S': {
+		int16_t smallint_value = Cast::Operation<string_t, int16_t>(number_str_val);
+		return make_uniq<ConstantExpression>(Value::SMALLINT(smallint_value));
+	}
+	case 'Y': {
+		int8_t tinyint_value = Cast::Operation<string_t, int8_t>(number_str_val);
+		return make_uniq<ConstantExpression>(Value::TINYINT(tinyint_value));
+	}
+	case 'D': {
+		if (std::toupper(str[str.size() - 2]) == 'B') {
+			auto number_str_bd = str.substr(0, str.size() - 2);
 
-				uint8_t total_digits = 0;
-				uint8_t digits_after_dot = 0;
-				bool found_dot = false;
-				int exponent = 0;
+			uint8_t total_digits = 0;
+			uint8_t digits_after_dot = 0;
+			bool found_dot = false;
+			int exponent = 0;
 
-				// Split mantissa and exponent
-				auto e_pos = number_str_bd.find_first_of("eE");
-				string mantissa = (e_pos != string::npos) ? number_str_bd.substr(0, e_pos) : number_str_bd;
-				if (e_pos != string::npos) {
-					exponent = std::stoi(number_str_bd.substr(e_pos + 1));
-				}
-
-				for (auto c : mantissa) {
-					if (c >= '0' && c <= '9') {
-						total_digits++;
-						if (found_dot) {
-							digits_after_dot++;
-						}
-					} else if (c == '.') {
-						found_dot = true;
-					}
-				}
-
-				// Exponent shifts the decimal point: positive exponent = fewer digits after dot
-				int scale = static_cast<int>(digits_after_dot) - exponent;
-				if (scale < 0) {
-					total_digits += static_cast<uint8_t>(-scale);
-					scale = 0;
-				}
-				uint8_t width = total_digits < 1 ? 1 : total_digits;
-
-				auto val = Value(number_str_bd).DefaultCastAs(LogicalType::DECIMAL(width, static_cast<uint8_t>(scale)));
-				return make_uniq<ConstantExpression>(std::move(val));
+			// Split mantissa and exponent
+			auto e_pos = number_str_bd.find_first_of("eE");
+			string mantissa = (e_pos != string::npos) ? number_str_bd.substr(0, e_pos) : number_str_bd;
+			if (e_pos != string::npos) {
+				exponent = std::stoi(number_str_bd.substr(e_pos + 1));
 			}
-			double double_value = Cast::Operation<string_t, double>(number_str_val);
-			return make_uniq<ConstantExpression>(Value::DOUBLE(double_value));
+
+			for (auto c : mantissa) {
+				if (c >= '0' && c <= '9') {
+					total_digits++;
+					if (found_dot) {
+						digits_after_dot++;
+					}
+				} else if (c == '.') {
+					found_dot = true;
+				}
+			}
+
+			// Exponent shifts the decimal point: positive exponent = fewer digits after dot
+			int scale = static_cast<int>(digits_after_dot) - exponent;
+			if (scale < 0) {
+				total_digits += static_cast<uint8_t>(-scale);
+				scale = 0;
+			}
+			uint8_t width = total_digits < 1 ? 1 : total_digits;
+
+			auto val = Value(number_str_bd).DefaultCastAs(LogicalType::DECIMAL(width, static_cast<uint8_t>(scale)));
+			return make_uniq<ConstantExpression>(std::move(val));
 		}
-		case 'F': {
-			float float_value = Cast::Operation<string_t, float>(number_str_val);
-			return make_uniq<ConstantExpression>(Value::FLOAT(float_value));
-		}
-	    default: return nullptr;
+		double double_value = Cast::Operation<string_t, double>(number_str_val);
+		return make_uniq<ConstantExpression>(Value::DOUBLE(double_value));
+	}
+	case 'F': {
+		float float_value = Cast::Operation<string_t, float>(number_str_val);
+		return make_uniq<ConstantExpression>(Value::FLOAT(float_value));
+	}
+	default:
+		return nullptr;
 	}
 }
-
-
 
 bool IsSparkPostfix(const string &str) {
 	// The number token must contain at least one digit before the postfix.
@@ -616,12 +633,12 @@ bool IsSparkPostfix(const string &str) {
 	if (!has_digit) {
 		return false;
 	}
-	auto c = std::toupper(str[str.size()-1]);
+	auto c = std::toupper(str[str.size() - 1]);
 	// 'D' completing a 'BD' pair — the 'B' was already validated on the previous call.
-	if (c == 'D' && std::toupper(str[str.size()-2]) == 'B') {
+	if (c == 'D' && std::toupper(str[str.size() - 2]) == 'B') {
 		return true;
 	}
-	return SparkCompatUtils::IsSparkPostfixToken(&str[str.size()-1]);
+	return SparkCompatUtils::IsSparkPostfixToken(&str[str.size() - 1]);
 }
 
 unique_ptr<ParsedExpression> PEGTransformerFactory::ConvertNumberToValue(string val) {

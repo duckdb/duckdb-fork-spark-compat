@@ -126,8 +126,9 @@ void PEGTransformerFactory::RegisterCommon() {
 	// common.gram
 	REGISTER_TRANSFORM(TransformNumberLiteral);
 	REGISTER_TRANSFORM(TransformStringLiteral);
-	REGISTER_TRANSFORM(TransformColIdColonType);
 	REGISTER_TRANSFORM(TransformIntervalToIntervalAsType);
+	// set.gram — complex rule, skipped by the generator
+	REGISTER_TRANSFORM(TransformSetSetting);
 }
 
 void PEGTransformerFactory::RegisterCreateMacro() {
@@ -136,16 +137,9 @@ void PEGTransformerFactory::RegisterCreateMacro() {
 
 void PEGTransformerFactory::RegisterCreateTable() {
 	// create_table.gram
-	REGISTER_TRANSFORM(TransformSparkLocation);
-	REGISTER_TRANSFORM(TransformDottedSettingIdentifier);
-	REGISTER_TRANSFORM(TransformSparkUsing);
-	REGISTER_TRANSFORM(TransformColumnComment);
-	REGISTER_TRANSFORM(TransformViewColumnList);
-	REGISTER_TRANSFORM(TransformViewColumn);
 	REGISTER_TRANSFORM(TransformColLabelOrString);
 	REGISTER_TRANSFORM(TransformIdentifier);
 	REGISTER_TRANSFORM(TransformCubeOrRollup);
-
 }
 
 void PEGTransformerFactory::RegisterExpression() {

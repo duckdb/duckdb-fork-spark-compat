@@ -372,11 +372,11 @@ private:
 	static string ExtractFormat(const string &file_path);
 
 	// create_table.gram
-	static string TransformSparkLocation(PEGTransformer &transformer, ParseResult &parse_result);
-	static string TransformDottedSettingIdentifier(PEGTransformer &transformer, ParseResult &parse_result);
-	static pair<string, string> TransformSparkUsing(PEGTransformer &transformer, ParseResult &parse_result);
 	static string TransformColLabelOrString(PEGTransformer &transformer, ParseResult &parse_result);
 	static string TransformIdentifier(PEGTransformer &transformer, ParseResult &parse_result);
+
+	// set.gram — SetSetting is a complex rule (choice with a group), so the generator skips it
+	static SettingInfo TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result);
 
 	// create_trigger.gram
 	static TriggerForEach TransformForEachClause(PEGTransformer &transformer, ParseResult &parse_result);

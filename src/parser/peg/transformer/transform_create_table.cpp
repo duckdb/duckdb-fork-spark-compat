@@ -67,19 +67,19 @@ unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreateTableStmt(
 	info->query = std::move(create_table_definition.select_statement);
 	info->columns = std::move(create_table_definition.columns);
 	info->constraints = std::move(create_table_definition.constraints);
-	info->partition_keys = std::move(create_table_definition.partition_keys);
-	info->sort_keys = std::move(create_table_definition.sort_keys);
 	info->options = std::move(create_table_definition.options);
+	// PARTITIONED BY and SORTED BY are parsed but ignored — the duckdb catalog rejects partition/sort keys,
+	// while spark DDL that uses them must still succeed.
 
 	result->info = std::move(info);
 	return result;
 }
 
-CreateTableDefinition
-PEGTransformerFactory::TransformCreateTableAs(PEGTransformer &transformer, ColumnList identifier_list,
-                                              PartitionSortedOptions partition_sorted_options,
-                                              case_insensitive_map_t<unique_ptr<ParsedExpression>> with_list,
-                                              unique_ptr<SQLStatement> statement, const bool &with_data) {
+CreateTableDefinition PEGTransformerFactory::TransformCreateTableAs(
+    PEGTransformer &transformer, const pair<string, string> &spark_using, ColumnList identifier_list,
+    PartitionSortedOptions partition_sorted_options, case_insensitive_map_t<unique_ptr<ParsedExpression>> with_list,
+    unique_ptr<SQLStatement> statement, const bool &with_data) {
+	// spark_using (USING <format> [LOCATION <path>]) is parsed for spark compatibility but ignored
 	CreateTableDefinition result;
 	result.columns = std::move(identifier_list);
 	result.partition_keys = std::move(partition_sorted_options.partition_keys);
@@ -106,10 +106,10 @@ ColumnList PEGTransformerFactory::TransformIdentifierList(PEGTransformer &transf
 	return result;
 }
 
-CreateTableDefinition
-PEGTransformerFactory::TransformCreateColumnList(PEGTransformer &transformer, ColumnElements create_table_column_list,
-                                                 PartitionSortedOptions partition_sorted_options,
-                                                 case_insensitive_map_t<unique_ptr<ParsedExpression>> with_list) {
+CreateTableDefinition PEGTransformerFactory::TransformCreateColumnList(
+    PEGTransformer &transformer, ColumnElements create_table_column_list, const pair<string, string> &spark_using,
+    PartitionSortedOptions partition_sorted_options, case_insensitive_map_t<unique_ptr<ParsedExpression>> with_list) {
+	// spark_using (USING <format> [LOCATION <path>]) is parsed for spark compatibility but ignored
 	if (create_table_column_list.columns.empty()) {
 		throw ParserException("Table must have at least one column!");
 	}
@@ -120,6 +120,13 @@ PEGTransformerFactory::TransformCreateColumnList(PEGTransformer &transformer, Co
 	result.sort_keys = std::move(partition_sorted_options.sort_keys);
 	result.options = std::move(with_list);
 	return result;
+}
+
+// SparkUsing <- 'USING' Identifier SparkLocation?
+pair<string, string> PEGTransformerFactory::TransformSparkUsing(PEGTransformer &transformer,
+                                                                const Identifier &identifier,
+                                                                const string &spark_location) {
+	return make_pair(identifier.GetIdentifierName(), spark_location);
 }
 
 bool PEGTransformerFactory::TransformOrReplace(PEGTransformer &transformer) {
@@ -211,6 +218,21 @@ vector<string> PEGTransformerFactory::TransformDottedIdentifier(PEGTransformer &
 	return parts;
 }
 
+// ColumnConstraint <- NotNullConstraint / UniqueConstraint / PrimaryKeyConstraint / DefaultValue / CheckConstraint /
+//                     ForeignKeyConstraint / ColumnCollation / ColumnCompression / ColumnComment
+// Hand-written dispatcher: the alternatives do not all produce a ColumnConstraintEntry — ColumnComment (a spark
+// compatibility addition) produces a plain string, so it is wrapped into an entry here.
+ColumnConstraintEntry PEGTransformerFactory::TransformColumnConstraint(PEGTransformer &transformer,
+                                                                       ParseResult &choice_result) {
+	if (choice_result.name == "ColumnComment") {
+		ColumnConstraintEntry entry;
+		entry.constraint_name = "ColumnComment";
+		entry.expression = make_uniq<ConstantExpression>(Value(transformer.Transform<string>(choice_result)));
+		return entry;
+	}
+	return transformer.Transform<ColumnConstraintEntry>(choice_result);
+}
+
 ConstraintColumnDefinition
 PEGTransformerFactory::TransformColumnDefinition(PEGTransformer &transformer, const vector<string> &dotted_identifier,
                                                  const LogicalType &type, GeneratedColumnDefinition generated_column,
@@ -269,10 +291,9 @@ PEGTransformerFactory::TransformColumnDefinition(PEGTransformer &transformer, co
 			type_children.push_back(std::move(cc_entry.expression));
 			column_type =
 			    LogicalType::UNBOUND(make_uniq<TypeExpression>(Identifier("VARCHAR"), std::move(type_children)));
-			} else if (cc_entry.constraint_name == "ColumnComment") {
-				//TODO: fix this one as part of merge w main
-				comment = transformer.Transform<string>(constraint);
-				has_comment = true;
+		} else if (cc_entry.constraint_name == "ColumnComment") {
+			comment = StringValue::Get(cc_entry.expression->Cast<ConstantExpression>().GetValue());
+			has_comment = true;
 		} else {
 			accumulated_constraints.constraints.push_back(std::move(cc_entry.constraint));
 		}

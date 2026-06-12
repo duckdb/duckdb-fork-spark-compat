@@ -665,7 +665,7 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformLogicalNotExpressio
 }
 
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformSparkNotExpression(PEGTransformer &transformer,
-																   ParseResult &parse_result) {
+                                                                                ParseResult &parse_result) {
 	return transformer.Transform<unique_ptr<ParsedExpression>>(parse_result);
 }
 
@@ -859,11 +859,12 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformBetweenInLikeExpres
 	} else if (between_in_like_expr->GetExpressionClass() == ExpressionClass::CONJUNCTION) {
 		// LIKE ANY/ALL: conjunction of LIKE function expressions, each missing its LHS
 		auto &conj_expr = between_in_like_expr->Cast<ConjunctionExpression>();
-		for (idx_t i = 0; i < conj_expr.children.size(); i++) {
-			auto &func_expr = conj_expr.children[i]->Cast<FunctionExpression>();
-			func_expr.children.insert(func_expr.children.begin(), expr->Copy());
+		for (auto &conj_child : conj_expr.GetChildrenMutable()) {
+			auto &func_expr = conj_child->Cast<FunctionExpression>();
+			auto &func_args = func_expr.GetArgumentsMutable();
+			func_args.insert(func_args.begin(), expr->Copy());
 			if (has_not) {
-				TryNegateLikeFunction(func_expr.function_name);
+				TryNegateLikeFunction(func_expr.FunctionNameMutable());
 			}
 		}
 		expr = std::move(between_in_like_expr);
@@ -959,8 +960,8 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformLikeAnyAllClause(PE
 		auto pattern_expr = transformer.Transform<unique_ptr<ParsedExpression>>(pattern_ref);
 		vector<unique_ptr<ParsedExpression>> children;
 		children.push_back(std::move(pattern_expr));
-		auto func = make_uniq<FunctionExpression>(like_variation, std::move(children));
-		func->is_operator = true;
+		auto func = make_uniq<FunctionExpression>(Identifier(like_variation), std::move(children));
+		func->IsOperatorMutable() = true;
 		like_exprs.push_back(std::move(func));
 	}
 
@@ -2366,7 +2367,7 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformRowExpressionArg(PE
 	auto &alias_opt = list_pr.Child<OptionalParseResult>(1);
 	if (alias_opt.HasResult()) {
 		auto alias = transformer.Transform<string>(alias_opt.GetResult());
-		expr->SetAlias(alias);
+		expr->SetAlias(Identifier(alias));
 	}
 	return expr;
 }

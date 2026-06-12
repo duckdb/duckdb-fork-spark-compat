@@ -86,19 +86,20 @@ void PEGTransformerFactory::ConvertToRecursiveView(unique_ptr<CreateViewInfo> &i
 	WrapRecursiveView(info, std::move(result_node));
 }
 
-unique_ptr<CreateStatement>
-PEGTransformerFactory::TransformCreateViewStmt(PEGTransformer &transformer, const bool &create_recursive,
-                                               const bool &if_not_exists, const QualifiedName &qualified_name,
-                                               const vector<string> &insert_column_list,
-                                               case_insensitive_map_t<unique_ptr<ParsedExpression>> with_list,
-                                               unique_ptr<SelectStatement> select_statement_internal) {
+unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreateViewStmt(
+    PEGTransformer &transformer, const bool &create_recursive, const bool &if_not_exists,
+    const QualifiedName &qualified_name, const vector<string> &view_column_list,
+    const vector<string> &insert_column_list, case_insensitive_map_t<unique_ptr<ParsedExpression>> with_list,
+    unique_ptr<SelectStatement> select_statement_internal) {
 	auto result = make_uniq<CreateStatement>();
 	auto info = make_uniq<CreateViewInfo>();
 	info->on_conflict = if_not_exists ? OnCreateConflict::IGNORE_ON_CONFLICT : OnCreateConflict::ERROR_ON_CONFLICT;
 	info->catalog = qualified_name.catalog;
 	info->schema = qualified_name.schema;
 	info->view_name = qualified_name.name;
-	info->aliases = StringsToIdentifiers(insert_column_list);
+	// ViewColumnList is the spark-style column list (entries may carry a COMMENT, which is ignored); a plain
+	// parenthesized column list matches it as well, so prefer it and fall back to InsertColumnList.
+	info->aliases = StringsToIdentifiers(view_column_list.empty() ? insert_column_list : view_column_list);
 	if (!with_list.empty()) {
 		for (auto &option_entry : with_list) {
 			if (!StringUtil::CIEquals(option_entry.first, "defer_binding")) {
@@ -129,6 +130,13 @@ PEGTransformerFactory::TransformCreateViewStmt(PEGTransformer &transformer, cons
 
 bool PEGTransformerFactory::TransformCreateRecursive(PEGTransformer &transformer) {
 	return true;
+}
+
+// ViewColumn <- ColId ('COMMENT' StringLiteral)?
+string PEGTransformerFactory::TransformViewColumn(PEGTransformer &transformer, const Identifier &col_id,
+                                                  const string &string_literal) {
+	// the column COMMENT is parsed for spark compatibility but ignored
+	return col_id.GetIdentifierName();
 }
 
 } // namespace duckdb
