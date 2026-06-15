@@ -4,7 +4,8 @@
 #include "duckdb/parser/parsed_expression.hpp"
 #include "duckdb/parser/result_modifier.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct GenericCopyOptionValue {
 	bool has_value = false;
@@ -13,4 +14,4 @@ struct GenericCopyOptionValue {
 	unique_ptr<ParsedExpression> expression;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

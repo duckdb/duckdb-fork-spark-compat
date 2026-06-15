@@ -21,7 +21,8 @@
 #include "duckdb/parser/query_node/update_query_node.hpp"
 #include "duckdb/parser/query_node/delete_query_node.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformSelectStatement(PEGTransformer &transformer,
                                                                          ParseResult &parse_result) {
@@ -1971,4 +1972,4 @@ optional_idx PEGTransformerFactory::TransformSampleSeed(PEGTransformer &transfor
 	return optional_idx(const_expr.GetValue().GetValue<idx_t>());
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

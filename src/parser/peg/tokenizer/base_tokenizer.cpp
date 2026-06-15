@@ -2,7 +2,8 @@
 #include "duckdb/parser/peg/tokenizer/base_tokenizer.hpp"
 #include "duckdb/parser/peg/keyword_helper.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 BaseTokenizer::BaseTokenizer(const string &sql, vector<MatcherToken> &tokens)
     : sql(sql), tokens(tokens), keyword_helper(PEGKeywordHelper::Instance()) {
@@ -551,4 +552,4 @@ void BaseTokenizer::OnLastToken(TokenizeState state, string last_word, idx_t las
 	tokens.emplace_back(std::move(last_word), last_pos, TokenizeStateToType(state), is_unterminated);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

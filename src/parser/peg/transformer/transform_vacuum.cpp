@@ -1,7 +1,8 @@
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/statement/vacuum_statement.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformVacuumStatement(PEGTransformer &transformer,
                                                                          const VacuumOptions &vacuum_options,
@@ -77,4 +78,4 @@ string PEGTransformerFactory::TransformOptVerbose(PEGTransformer &transformer) {
 	return "verbose";
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

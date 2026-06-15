@@ -3,7 +3,8 @@
 #include "duckdb/parser/statement/merge_into_statement.hpp"
 #include "duckdb/parser/query_node/merge_query_node.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformMergeIntoStatement(
     PEGTransformer &transformer, CommonTableExpressionMap with_clause, unique_ptr<BaseTableRef> target_opt_alias,
@@ -162,4 +163,4 @@ MergeActionCondition PEGTransformerFactory::TransformByTarget(PEGTransformer &tr
 	return MergeActionCondition::WHEN_NOT_MATCHED_BY_TARGET;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

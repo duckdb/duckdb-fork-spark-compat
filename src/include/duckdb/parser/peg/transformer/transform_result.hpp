@@ -2,7 +2,8 @@
 
 #include "duckdb/common/common.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct TransformResultValue {
 	virtual ~TransformResultValue() = default;
@@ -15,4 +16,4 @@ struct TypedTransformResult : public TransformResultValue {
 	T value;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

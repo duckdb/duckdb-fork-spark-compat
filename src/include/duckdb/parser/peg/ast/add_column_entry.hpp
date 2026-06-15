@@ -5,7 +5,8 @@
 #include "duckdb/parser/constraint.hpp"
 
 #include "duckdb/common/identifier.hpp"
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct AddColumnEntry {
 	LogicalType type;
@@ -13,4 +14,4 @@ struct AddColumnEntry {
 	unique_ptr<ParsedExpression> default_value;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

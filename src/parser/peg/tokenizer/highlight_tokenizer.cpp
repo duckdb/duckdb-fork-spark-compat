@@ -1,6 +1,7 @@
 #include "duckdb/parser/peg/tokenizer/highlight_tokenizer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 HighlightTokenizer::HighlightTokenizer(const string &sql) : BaseTokenizer(sql, tokens) {
 }
@@ -16,4 +17,4 @@ void HighlightTokenizer::PushToken(idx_t start, idx_t end, TokenType type, bool 
 void HighlightTokenizer::OnStatementEnd(idx_t pos) {
 	tokens.emplace_back(";", pos, TokenType::TERMINATOR);
 }
-} // namespace duckdb
+} // namespace duckdb_fork

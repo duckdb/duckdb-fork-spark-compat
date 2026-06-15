@@ -2,7 +2,8 @@
 #include "duckdb/parser/qualified_name.hpp"
 #include "duckdb/parser/parsed_data/create_sequence_info.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 class SequenceOption {
 public:
@@ -33,4 +34,4 @@ public:
 	QualifiedName qualified_name;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

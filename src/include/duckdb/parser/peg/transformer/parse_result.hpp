@@ -13,7 +13,8 @@
 #include "duckdb/parser/peg/token_type.hpp"
 #include "duckdb/common/windows_undefs.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 inline string TokenTypeToString(TokenType type) {
 	switch (type) {
@@ -540,4 +541,4 @@ public:
 	}
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

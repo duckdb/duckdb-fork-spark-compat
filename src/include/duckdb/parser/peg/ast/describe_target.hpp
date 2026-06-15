@@ -5,7 +5,8 @@
 #include "duckdb/common/string.hpp"
 #include "duckdb/parser/tableref/basetableref.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct DescribeTarget {
 	bool is_table_name = false;
@@ -13,4 +14,4 @@ struct DescribeTarget {
 	unique_ptr<BaseTableRef> table_ref;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

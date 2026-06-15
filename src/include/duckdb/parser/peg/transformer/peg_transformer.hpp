@@ -55,9 +55,13 @@
 #include "duckdb/parser/tableref/pivotref.hpp"
 
 namespace duckdb {
+struct QualifiedName;
+} // namespace duckdb
+
+namespace duckdb_fork {
+using namespace duckdb;
 
 // Forward declare
-struct QualifiedName;
 struct MatcherToken;
 struct GroupingExpressionMap;
 class Matcher;
@@ -2741,4 +2745,4 @@ private:
 	case_insensitive_map_t<unique_ptr<TransformEnumValue>> enum_mappings;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

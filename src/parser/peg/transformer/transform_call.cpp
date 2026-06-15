@@ -3,7 +3,8 @@
 #include "duckdb/parser/statement/call_statement.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement>
 PEGTransformerFactory::TransformCallStatement(PEGTransformer &transformer,
@@ -17,4 +18,4 @@ PEGTransformerFactory::TransformCallStatement(PEGTransformer &transformer,
 	return std::move(result);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

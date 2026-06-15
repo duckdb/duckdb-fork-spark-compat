@@ -2,7 +2,8 @@
 #include "duckdb/parser/statement/connect_statement.hpp"
 #include "duckdb/parser/statement/disconnect_statement.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 //! Shape captured from `SessionTarget <- 'LOCAL' / StringLiteral / CatalogName`. The framework
 //! wraps the named sub-rule in a List whose only child is the Choice over the alternatives.
@@ -58,4 +59,4 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformDisconnectStatement(PEG
 	return std::move(result);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

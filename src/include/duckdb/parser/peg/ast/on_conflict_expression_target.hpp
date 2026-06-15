@@ -5,11 +5,12 @@
 #include "duckdb/common/vector.hpp"
 
 #include "duckdb/common/identifier.hpp"
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct OnConflictExpressionTarget {
 	vector<Identifier> indexed_columns;
 	unique_ptr<ParsedExpression> where_clause; // Default value is defined here
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

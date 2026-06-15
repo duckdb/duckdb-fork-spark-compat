@@ -5,7 +5,8 @@
 #include "duckdb/parser/expression/cast_expression.hpp"
 #include "duckdb/parser/expression/operator_expression.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 void PEGTransformer::ParamTypeCheck(PreparedParamType last_type, PreparedParamType new_type) {
 	// Mixing positional/auto-increment and named parameters is not supported
@@ -168,4 +169,4 @@ void PEGTransformer::SetQueryLocation(TableRef &ref, optional_idx query_location
 	ref.query_location = query_location;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

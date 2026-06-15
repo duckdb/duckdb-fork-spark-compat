@@ -2,7 +2,8 @@
 #include "duckdb/parser/parsed_expression.hpp"
 
 #include "duckdb/common/identifier.hpp"
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 struct MacroParameter {
 	unique_ptr<ParsedExpression> expression;
 	Identifier name;
@@ -10,4 +11,4 @@ struct MacroParameter {
 	bool is_default = false;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

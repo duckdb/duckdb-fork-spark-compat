@@ -3,7 +3,8 @@
 #include "duckdb/common/case_insensitive_map.hpp"
 #include "duckdb/parser/simplified_token.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 enum class PEGKeywordCategory : uint8_t {
 	KEYWORD_NONE,
 	KEYWORD_UNRESERVED,
@@ -36,4 +37,4 @@ private:
 	case_insensitive_set_t typefunc_keyword_map;
 	case_insensitive_set_t typename_keyword_map;
 };
-} // namespace duckdb
+} // namespace duckdb_fork

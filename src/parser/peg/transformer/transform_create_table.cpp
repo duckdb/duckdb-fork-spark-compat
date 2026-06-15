@@ -19,7 +19,8 @@
 #include "duckdb/parser/expression/type_expression.hpp"
 #include "duckdb/catalog/default/default_types.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement>
 PEGTransformerFactory::TransformCreateStatement(PEGTransformer &transformer, const bool &or_replace,
@@ -576,4 +577,4 @@ PEGTransformerFactory::TransformSortedOptPartitionOptions(PEGTransformer &transf
 	return result;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

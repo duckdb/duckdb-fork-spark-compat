@@ -10,7 +10,8 @@
 #include "duckdb/parser/expression/type_expression.hpp"
 #include "duckdb/common/types/bignum.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 string PEGTransformerFactory::TransformIdentifierOrKeyword(PEGTransformer &transformer, ParseResult &parse_result) {
 	if (parse_result.type == ParseResultType::IDENTIFIER) {
@@ -744,4 +745,4 @@ Identifier PEGTransformerFactory::TransformConstraintName(PEGTransformer &transf
                                                           const Identifier &col_id_or_string) {
 	return Identifier(col_id_or_string);
 }
-} // namespace duckdb
+} // namespace duckdb_fork

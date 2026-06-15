@@ -1,7 +1,8 @@
 #pragma once
 #include "duckdb/parser/expression/window_expression.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct WindowFrame {
 	WindowBoundary start;
@@ -17,4 +18,4 @@ struct WindowBoundaryExpression {
 	unique_ptr<ParsedExpression> expr;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

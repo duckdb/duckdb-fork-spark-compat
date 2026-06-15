@@ -1,7 +1,8 @@
 #include "duckdb/parser/statement/transaction_statement.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement>
 PEGTransformerFactory::TransformBeginTransaction(PEGTransformer &transformer,
@@ -32,4 +33,4 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformCommitTransaction(PEGTr
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformRollbackTransaction(PEGTransformer &transformer) {
 	return make_uniq<TransactionStatement>(make_uniq<TransactionInfo>(TransactionType::ROLLBACK));
 }
-} // namespace duckdb
+} // namespace duckdb_fork

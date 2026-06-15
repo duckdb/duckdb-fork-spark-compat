@@ -1,7 +1,8 @@
 #include "duckdb/parser/tableref/showref.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SelectStatement> PEGTransformerFactory::TransformDescribeStatement(PEGTransformer &transformer,
                                                                               unique_ptr<QueryNode> child) {
@@ -148,4 +149,4 @@ ShowType PEGTransformerFactory::TransformDescRule(PEGTransformer &transformer) {
 	return ShowType::DESCRIBE;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

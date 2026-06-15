@@ -3,7 +3,8 @@
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/statement/vacuum_statement.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformAnalyzeStatement(PEGTransformer &transformer,
                                                                           const bool &analyze_verbose,
                                                                           AnalyzeTarget analyze_target) {
@@ -33,4 +34,4 @@ AnalyzeTarget PEGTransformerFactory::TransformAnalyzeTarget(PEGTransformer &tran
 bool PEGTransformerFactory::TransformAnalyzeVerbose(PEGTransformer &transformer) {
 	return true;
 }
-} // namespace duckdb
+} // namespace duckdb_fork

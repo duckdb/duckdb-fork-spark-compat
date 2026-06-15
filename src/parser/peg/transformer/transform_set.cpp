@@ -2,7 +2,8 @@
 #include "duckdb/parser/expression/cast_expression.hpp"
 #include "duckdb/parser/expression/default_expression.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 // ResetStatement <- 'RESET' SetVariableOrSetting
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformResetStatement(PEGTransformer &transformer,
@@ -166,4 +167,4 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformZoneIntervalWithPre
 	return make_uniq<CastExpression>(LogicalType::INTERVAL, std::move(expr));
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

@@ -1,7 +1,8 @@
 #include "duckdb/parser/statement/prepare_statement.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 bool IsPrepareableStatement(StatementType type) {
 	switch (type) {
@@ -35,4 +36,4 @@ vector<LogicalType> PEGTransformerFactory::TransformTypeList(PEGTransformer &tra
 	throw NotImplementedException("TypeList for prepared statement has not been implemented.");
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

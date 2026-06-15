@@ -2,9 +2,10 @@
 #include "duckdb/common/string.hpp"
 
 #include "duckdb/common/identifier.hpp"
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 struct TriggerTableReferencingInfo {
 	Identifier new_table;
 	Identifier old_table;
 };
-} // namespace duckdb
+} // namespace duckdb_fork

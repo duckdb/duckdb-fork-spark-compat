@@ -17,7 +17,8 @@
 #include "duckdb/parser/peg/transformer/parse_result.hpp"
 #include <mutex>
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 class PEGTransformerFactory;
 class ParseResultAllocator;
 class Matcher;
@@ -248,6 +249,10 @@ private:
 //! Per-database cache holder for the compiled PEG root matcher and transformer factory.
 //! Both are always invalidated together, so they share one mutex and one Invalidate() call.
 struct ParserCache {
+	//! Process-wide cache for the fork's compiled grammar. The host DatabaseInstance's
+	//! ParserCache is a duckdb:: type holding the host's grammar, so the fork keeps its own.
+	static ParserCache &GetDefault();
+
 	shared_ptr<PEGMatcher> GetMatcher();
 	shared_ptr<PEGTransformerFactory> GetTransformerFactory();
 	void Invalidate();
@@ -258,4 +263,4 @@ private:
 	shared_ptr<PEGTransformerFactory> transformer_factory;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

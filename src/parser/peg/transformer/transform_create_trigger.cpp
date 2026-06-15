@@ -9,7 +9,8 @@
 #include "duckdb/parser/query_node/delete_query_node.hpp"
 #include "duckdb/parser/query_node/merge_query_node.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 static unique_ptr<QueryNode> ExtractQueryNode(unique_ptr<SQLStatement> stmt) {
 	switch (stmt->type) {
@@ -154,4 +155,4 @@ TriggerForEach PEGTransformerFactory::TransformForEachStatement(PEGTransformer &
 	return TriggerForEach::STATEMENT;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

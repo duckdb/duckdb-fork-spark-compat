@@ -10,7 +10,8 @@
 #include "duckdb/parser/statement/update_statement.hpp"
 #include "duckdb/parser/query_node/update_query_node.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformAlterStatement(PEGTransformer &transformer,
                                                                         unique_ptr<AlterInfo> alter_options) {
@@ -420,4 +421,4 @@ string PEGTransformerFactory::TransformSetNullability(PEGTransformer &transforme
 	return "set";
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

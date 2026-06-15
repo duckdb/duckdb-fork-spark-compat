@@ -16,7 +16,8 @@
 #include "duckdb/parser/peg/tokenizer/highlight_tokenizer.hpp"
 #include "utf8proc_wrapper.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 Parser::Parser(ParserOptions options_p) : options(options_p) {
 }
@@ -24,13 +25,10 @@ Parser::Parser(ParserOptions options_p) : options(options_p) {
 Parser::~Parser() = default;
 
 ParserCache &Parser::GetCache() {
-	if (options.parser_cache) {
-		return *options.parser_cache;
-	}
-	if (!local_cache) {
-		local_cache = make_uniq<ParserCache>();
-	}
-	return *local_cache;
+	// This previously used options.parser_cache.
+	// But options.parser_cache is the host's duckdb::ParserCache holding the host's grammar -
+	// the fork must always use its own cache.
+	return ParserCache::GetDefault();
 }
 
 static bool ReplaceUnicodeSpaces(const string &query, string &new_query, vector<UnicodeSpace> &unicode_spaces) {
@@ -684,4 +682,4 @@ ColumnDefinition Parser::ParseColumnDefinition(const string &column_definition, 
 	return column_list.GetColumn(LogicalIndex(0)).Copy();
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

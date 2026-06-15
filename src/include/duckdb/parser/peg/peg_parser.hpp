@@ -2,7 +2,8 @@
 #include "duckdb/common/case_insensitive_map.hpp"
 #include "duckdb/common/string_map_set.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 enum class PEGRuleType {
 	LITERAL,   // literal rule ('Keyword')
 	REFERENCE, // reference to another rule (Rule)
@@ -63,4 +64,4 @@ inline bool IsPEGOperator(char c) {
 	}
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

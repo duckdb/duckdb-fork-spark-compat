@@ -2,7 +2,8 @@
 #include "duckdb/parser/statement/delete_statement.hpp"
 #include "duckdb/parser/query_node/delete_query_node.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformDeleteStatement(
     PEGTransformer &transformer, CommonTableExpressionMap with_clause, unique_ptr<BaseTableRef> target_opt_alias,
@@ -41,4 +42,4 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformTruncateStatement(PEGTr
 	return std::move(result);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

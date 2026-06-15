@@ -18,10 +18,14 @@
 #include "duckdb/parser/parser_extension.hpp"
 
 namespace duckdb {
+class GroupByNode;
+}// namespace duckdb
+
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct ParserCache;
 struct MatcherToken;
-class GroupByNode;
 struct UnicodeSpace {
 	UnicodeSpace(idx_t pos, idx_t bytes) : pos(pos), bytes(bytes) {
 	}
@@ -96,6 +100,5 @@ private:
 	ParserCache &GetCache();
 
 	ParserOptions options;
-	unique_ptr<ParserCache> local_cache;
 };
-} // namespace duckdb
+} // namespace duckdb_fork

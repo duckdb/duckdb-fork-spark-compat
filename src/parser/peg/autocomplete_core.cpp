@@ -5,7 +5,8 @@
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/peg/tokenizer/base_tokenizer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 string GetSuggestionType(SuggestionState type) {
 	switch (type) {
@@ -277,4 +278,4 @@ vector<AutoCompleteSuggestion> GenerateAutoCompleteSuggestions(AutoCompleteCatal
 	return ComputeSuggestions(available_suggestions, tokenizer.last_word, parameters);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

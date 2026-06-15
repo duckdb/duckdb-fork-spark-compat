@@ -3,7 +3,8 @@
 #include "duckdb/parser/column_definition.hpp"
 #include "duckdb/parser/constraint.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 struct GeneratedColumnDefinition {
 	unique_ptr<ParsedExpression> expr;
 	bool virtual_column = false;
@@ -15,4 +16,4 @@ struct ConstraintColumnDefinition {
 	vector<pair<bool, ConstraintType>> constraint_types;
 	vector<unique_ptr<Constraint>> constraints;
 };
-} // namespace duckdb
+} // namespace duckdb_fork

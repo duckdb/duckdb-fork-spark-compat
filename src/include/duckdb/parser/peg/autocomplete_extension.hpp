@@ -10,7 +10,8 @@
 
 #include "duckdb.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 class AutocompleteExtension : public Extension {
 public:
@@ -19,4 +20,4 @@ public:
 	std::string Version() const override;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

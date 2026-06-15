@@ -2,7 +2,8 @@
 #include "duckdb/parser/statement/call_statement.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformCheckpointStatement(PEGTransformer &transformer,
                                                                              const bool &checkpoint_force,
@@ -23,4 +24,4 @@ bool PEGTransformerFactory::TransformCheckpointForce(PEGTransformer &transformer
 	return true;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

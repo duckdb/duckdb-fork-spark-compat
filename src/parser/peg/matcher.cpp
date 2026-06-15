@@ -22,7 +22,8 @@
 #include "duckdb/parser/peg/inlined_grammar.hpp"
 #endif
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 SuggestionType Matcher::AddSuggestion(MatchState &state) const {
 	auto entry = state.added_suggestions.find(*this);
@@ -1548,14 +1549,17 @@ Matcher &MatcherFactory::CreateMatcher(const char *grammar, const char *root_rul
 	return CreateMatcher(parser, root_rule);
 }
 
-shared_ptr<PEGMatcher> PEGMatcher::Get(ClientContext &context) {
-	auto &db = DatabaseInstance::GetDatabase(context);
-	return PEGMatcher::Get(db);
+shared_ptr<PEGMatcher> PEGMatcher::Get(ClientContext &) {
+	return ParserCache::GetDefault().GetMatcher();
 }
 
-shared_ptr<PEGMatcher> PEGMatcher::Get(DatabaseInstance &db) {
-	auto &parser_cache = db.GetParserCache();
-	return parser_cache.GetMatcher();
+shared_ptr<PEGMatcher> PEGMatcher::Get(DatabaseInstance &) {
+	return ParserCache::GetDefault().GetMatcher();
+}
+
+ParserCache &ParserCache::GetDefault() {
+	static ParserCache cache;
+	return cache;
 }
 
 shared_ptr<PEGMatcher> ParserCache::GetMatcher() {
@@ -1607,4 +1611,4 @@ void ParserCache::Invalidate() {
 	transformer_factory = nullptr;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

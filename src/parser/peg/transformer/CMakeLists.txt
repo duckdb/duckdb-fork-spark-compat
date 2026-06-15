@@ -1,5 +1,5 @@
 add_library_unity(
-  duckdb_parser_peg_transformer
+  duckdb_fork_parser_peg_transformer
   OBJECT
   peg_transformer.cpp
   peg_transformer_factory.cpp
@@ -46,5 +46,5 @@ add_library_unity(
   transform_vacuum.cpp)
 
 set(ALL_OBJECT_FILES
-    ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_parser_peg_transformer>
+    ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_fork_parser_peg_transformer>
     PARENT_SCOPE)

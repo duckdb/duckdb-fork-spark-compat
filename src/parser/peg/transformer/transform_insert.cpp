@@ -4,7 +4,8 @@
 #include "duckdb/parser/statement/insert_statement.hpp"
 #include "duckdb/parser/query_node/insert_query_node.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformInsertStatement(
     PEGTransformer &transformer, CommonTableExpressionMap with_clause, const OnConflictAction &or_action,
@@ -143,4 +144,4 @@ PEGTransformerFactory::TransformReturningClause(PEGTransformer &transformer,
 	return target_list;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

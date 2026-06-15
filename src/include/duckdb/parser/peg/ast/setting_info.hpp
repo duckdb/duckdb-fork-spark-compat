@@ -4,11 +4,12 @@
 #include "duckdb/common/string.hpp"
 
 #include "duckdb/common/identifier.hpp"
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct SettingInfo {
 	Identifier name;
 	SetScope scope = SetScope::AUTOMATIC; // Default value is defined here
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

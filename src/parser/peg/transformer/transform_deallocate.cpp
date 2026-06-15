@@ -1,7 +1,8 @@
 #include "duckdb/parser/statement/drop_statement.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformDeallocateStatement(PEGTransformer &transformer,
                                                                              const bool &deallocate_prepare,
@@ -16,4 +17,4 @@ bool PEGTransformerFactory::TransformDeallocatePrepare(PEGTransformer &transform
 	return true;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

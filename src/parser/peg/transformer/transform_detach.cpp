@@ -1,7 +1,8 @@
 #include "duckdb/parser/statement/detach_statement.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformDetachStatement(PEGTransformer &transformer,
                                                                          const bool &if_exists,
@@ -14,4 +15,4 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformDetachStatement(PEGTran
 	return std::move(result);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

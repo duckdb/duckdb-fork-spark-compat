@@ -3,7 +3,8 @@
 #include "duckdb/parser/expression/columnref_expression.hpp"
 #include "duckdb/parser/expression/constant_expression.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 ProfilerPrintFormat ParseProfilerPrintFormat(const Value &val) {
 	if (val.type().id() != LogicalTypeId::VARCHAR) {
@@ -74,4 +75,4 @@ GenericCopyOption PEGTransformerFactory::TransformExplainOption(PEGTransformer &
 	return copy_option;
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

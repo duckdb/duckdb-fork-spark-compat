@@ -11,7 +11,8 @@
 #include "duckdb/parser/peg/keyword_helper.hpp"
 #include "duckdb/parser/peg/matcher.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 enum class TokenizeState {
 	STANDARD = 0,
@@ -78,4 +79,4 @@ protected:
 	PEGKeywordHelper keyword_helper;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

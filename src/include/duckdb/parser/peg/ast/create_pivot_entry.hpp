@@ -1,7 +1,8 @@
 #pragma once
 #include "duckdb/parser/query_node/select_node.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct CreatePivotEntry {
 	string enum_name;
@@ -11,4 +12,4 @@ struct CreatePivotEntry {
 	bool has_parameters;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

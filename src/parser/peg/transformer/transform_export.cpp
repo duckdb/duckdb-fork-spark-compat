@@ -3,7 +3,8 @@
 #include "duckdb/parser/statement/pragma_statement.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 unique_ptr<SQLStatement>
 PEGTransformerFactory::TransformExportStatement(PEGTransformer &transformer, const string &export_source,
@@ -42,4 +43,4 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformImportStatement(PEGTran
 	return std::move(result);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork

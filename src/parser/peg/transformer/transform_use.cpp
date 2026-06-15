@@ -1,7 +1,8 @@
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/sql_statement.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 // UseStatement <- 'USE' UseTarget
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformUseStatement(PEGTransformer &transformer,
@@ -50,4 +51,4 @@ QualifiedName PEGTransformerFactory::TransformUseTargetCatalogSchema(PEGTransfor
 Identifier PEGTransformerFactory::TransformDotIdentifier(PEGTransformer &transformer, const Identifier &identifier) {
 	return identifier;
 }
-} // namespace duckdb
+} // namespace duckdb_fork

@@ -1,7 +1,8 @@
 #include "duckdb/parser/peg/tokenizer/parser_tokenizer.hpp"
 #include "duckdb/common/exception/parser_exception.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 ParserTokenizer::ParserTokenizer(const string &sql, vector<MatcherToken> &tokens) : BaseTokenizer(sql, tokens) {
 }
@@ -24,4 +25,4 @@ void ParserTokenizer::OnLastToken(TokenizeState state, string last_word, idx_t l
 	BaseTokenizer::OnLastToken(state, std::move(last_word), last_pos);
 }
 
-} // namespace duckdb
+} // namespace duckdb_fork
