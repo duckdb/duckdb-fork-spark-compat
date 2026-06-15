@@ -16,9 +16,26 @@
 #include "duckdb/parser/parser_extension.hpp"
 #include "duckdb/parser/peg/transformer/parse_result.hpp"
 #include <mutex>
+#include <cctype>
 
 namespace duckdb_fork {
 using namespace duckdb;
+
+//! Spark-compat parser helper (formerly its own header duckdb/spark_compat.h).
+//! Recognises Spark numeric-literal suffixes (1L, 1S, 1BD, ...) during parsing.
+class SparkCompatUtils {
+public:
+	bool static IsSparkPostfixToken(const string &str) {
+		auto c = std::toupper(str[0]);
+		if (str.size() == 1) {
+			return (c == 'L' || c == 'S' || c == 'Y' || c == 'D' || c == 'F');
+		}
+		if (str.size() == 2 && c == 'B' && std::toupper(str[1]) == 'D') {
+			return true;
+		}
+		return false;
+	}
+};
 class PEGTransformerFactory;
 class ParseResultAllocator;
 class Matcher;
