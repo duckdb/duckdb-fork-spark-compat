@@ -1,9 +1,17 @@
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/expression/cast_expression.hpp"
 #include "duckdb/parser/expression/default_expression.hpp"
+#include "duckdb/parser/parsed_expression_iterator.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
+
+static bool ExpressionReferencesColumn(const ParsedExpression &expr) {
+	bool found = false;
+	ParsedExpressionIterator::VisitExpressionClass(expr, ExpressionClass::COLUMN_REF,
+	                                               [&](const ParsedExpression &) { found = true; });
+	return found;
+}
 
 // ResetStatement <- 'RESET' SetVariableOrSetting
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformResetStatement(PEGTransformer &transformer,
@@ -120,6 +128,11 @@ PEGTransformerFactory::TransformStandardAssignment(PEGTransformer &transformer,
 		value = make_uniq<ConstantExpression>(col_ref.GetColumnName());
 	} else if (value->GetExpressionClass() == ExpressionClass::DEFAULT) {
 		return make_uniq<ResetVariableStatement>(set_variable_or_setting.name, set_variable_or_setting.scope);
+	} else if (ExpressionReferencesColumn(*value)) {
+		// Spark accepts arbitrary raw config values (e.g. SET k=org.apache.x.Y or SET k=UTF-8). These
+		// tokenize into operator/struct expressions over column references, which the SET binder rejects.
+		// Such pass-through settings are not interpreted, so store the value's textual form as a string.
+		value = make_uniq<ConstantExpression>(Value(value->ToString()));
 	}
 	return make_uniq<SetVariableStatement>(set_variable_or_setting.name, std::move(value),
 	                                       set_variable_or_setting.scope);
