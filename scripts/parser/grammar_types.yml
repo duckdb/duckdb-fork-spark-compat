@@ -516,6 +516,7 @@ TableRef:
     - JoinClause
     - RegularJoinClause
     - JoinWithoutOnClause
+    - LateralJoinClause
     - TableUnpivotClause
     - TablePivotClause
     - InnerTableRef

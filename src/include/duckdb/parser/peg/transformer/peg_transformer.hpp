@@ -751,6 +751,7 @@ private:
 	static JoinQualifier TransformOnClause(PEGTransformer &transformer, ParseResult &parse_result);
 	static JoinQualifier TransformUsingClause(PEGTransformer &transformer, ParseResult &parse_result);
 	static unique_ptr<TableRef> TransformJoinWithoutOnClause(PEGTransformer &transformer, ParseResult &parse_result);
+	static unique_ptr<TableRef> TransformLateralJoinClause(PEGTransformer &transformer, ParseResult &parse_result);
 	static JoinPrefix TransformJoinPrefix(PEGTransformer &transformer, ParseResult &parse_result);
 	static JoinPrefix TransformCrossJoinPrefix(PEGTransformer &transformer, ParseResult &parse_result);
 	static JoinPrefix TransformNaturalJoinPrefix(PEGTransformer &transformer, ParseResult &parse_result);

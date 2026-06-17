@@ -411,6 +411,7 @@ void PEGTransformerFactory::RegisterSelect() {
 	REGISTER_TRANSFORM(TransformOnClause);
 	REGISTER_TRANSFORM(TransformUsingClause);
 	REGISTER_TRANSFORM(TransformJoinWithoutOnClause);
+	REGISTER_TRANSFORM(TransformLateralJoinClause);
 	REGISTER_TRANSFORM(TransformJoinPrefix);
 	REGISTER_TRANSFORM(TransformCrossJoinPrefix);
 	REGISTER_TRANSFORM(TransformNaturalJoinPrefix);

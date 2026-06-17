@@ -934,6 +934,25 @@ unique_ptr<TableRef> PEGTransformerFactory::TransformJoinWithoutOnClause(PEGTran
 	return std::move(result);
 }
 
+unique_ptr<TableRef> PEGTransformerFactory::TransformLateralJoinClause(PEGTransformer &transformer,
+                                                                      ParseResult &parse_result) {
+	// Spark's `JOIN LATERAL (subquery)` is an unconditioned inner lateral join (correlation is
+	// auto-detected by the binder). Represent it as an INNER JOIN with an explicit TRUE condition.
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto subquery_reference = transformer.Transform<unique_ptr<TableRef>>(list_pr.Child<ListParseResult>(2));
+	auto &table_alias_opt = list_pr.Child<OptionalParseResult>(3);
+	if (table_alias_opt.HasResult()) {
+		auto table_alias = transformer.Transform<TableAlias>(table_alias_opt.GetResult());
+		subquery_reference->alias = table_alias.name;
+		subquery_reference->column_name_alias = table_alias.column_name_alias;
+	}
+	auto result = make_uniq<JoinRef>();
+	result->type = JoinType::INNER;
+	result->right = std::move(subquery_reference);
+	result->condition = make_uniq<ConstantExpression>(Value::BOOLEAN(true));
+	return std::move(result);
+}
+
 JoinPrefix PEGTransformerFactory::TransformJoinPrefix(PEGTransformer &transformer, ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
 	return transformer.Transform<JoinPrefix>(list_pr.Child<ChoiceParseResult>(0).GetResult());
