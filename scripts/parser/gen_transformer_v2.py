@@ -1030,11 +1030,11 @@ def write_cpp(all_implementations, all_registrations):
     content = (
         GENERATED_HEADER
         + '#include "duckdb/parser/peg/transformer/peg_transformer.hpp"\n'
-        + "\nnamespace duckdb {\n\n"
+        + "\nnamespace duckdb_fork {\nusing namespace duckdb;\n\n"
         + "\n".join(all_implementations)
         + "\n"
         + generate_table_and_register(all_registrations)
-        + "\n} // namespace duckdb\n"
+        + "\n} // namespace duckdb_fork\n"
     )
     cpp_path.write_text(content)
     print(f"Wrote {cpp_path}")

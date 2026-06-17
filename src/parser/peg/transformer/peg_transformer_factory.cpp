@@ -130,6 +130,10 @@ void PEGTransformerFactory::RegisterCommon() {
 	REGISTER_TRANSFORM(TransformIntervalToIntervalAsType);
 	// set.gram — complex rule, skipped by the generator
 	REGISTER_TRANSFORM(TransformSetSetting);
+	// describe.gram — DescribeExtended has an inlined keyword-choice modifier, skipped by the generator (along with
+	// DescribeStatement, whose choice references it)
+	REGISTER_TRANSFORM(TransformDescribeStatement);
+	REGISTER_TRANSFORM(TransformDescribeExtended);
 }
 
 void PEGTransformerFactory::RegisterCreateMacro() {

@@ -181,6 +181,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	unreserved_keyword_map.insert("explain");
 	unreserved_keyword_map.insert("export");
 	unreserved_keyword_map.insert("export_state");
+	unreserved_keyword_map.insert("extended");
 	unreserved_keyword_map.insert("extension");
 	unreserved_keyword_map.insert("extensions");
 	unreserved_keyword_map.insert("external");
@@ -189,6 +190,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	unreserved_keyword_map.insert("first");
 	unreserved_keyword_map.insert("following");
 	unreserved_keyword_map.insert("force");
+	unreserved_keyword_map.insert("formatted");
 	unreserved_keyword_map.insert("forward");
 	unreserved_keyword_map.insert("function");
 	unreserved_keyword_map.insert("functions");

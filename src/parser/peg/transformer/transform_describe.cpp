@@ -1,11 +1,49 @@
 #include "duckdb/parser/tableref/showref.hpp"
+#include "duckdb/parser/tableref/table_function_ref.hpp"
+#include "duckdb/parser/expression/constant_expression.hpp"
+#include "duckdb/parser/expression/function_expression.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
 
+// Spark's DESCRIBE [EXTENDED|FORMATTED] is rerouted into a SELECT over the extension-registered
+// spark_describe_extended table function, which produces the detailed (col_name, data_type, comment) output.
+static unique_ptr<QueryNode> BuildDescribeExtendedSelect(const DescribeTarget &describe_target) {
+	string target_name;
+	if (describe_target.is_table_name) {
+		target_name = describe_target.table_name.GetIdentifierName();
+	} else if (describe_target.table_ref) {
+		auto &base_table = *describe_target.table_ref;
+		if (!IsInvalidCatalog(base_table.catalog_name)) {
+			target_name += base_table.catalog_name.GetIdentifierName() + ".";
+		}
+		if (!IsInvalidSchema(base_table.schema_name)) {
+			target_name += base_table.schema_name.GetIdentifierName() + ".";
+		}
+		target_name += base_table.table_name.GetIdentifierName();
+	} else {
+		throw ParserException("DESCRIBE EXTENDED requires a table or view name");
+	}
+
+	vector<unique_ptr<ParsedExpression>> children;
+	children.push_back(make_uniq<ConstantExpression>(Value(target_name)));
+	auto table_function = make_uniq<TableFunctionRef>();
+	table_function->function = make_uniq<FunctionExpression>("spark_describe_extended", std::move(children));
+
+	auto select_node = make_uniq<SelectNode>();
+	select_node->select_list.push_back(make_uniq<StarExpression>());
+	select_node->from_table = std::move(table_function);
+	return std::move(select_node);
+}
+
+// DescribeStatement <- ShowTables / ShowSelect / ShowAllTables / DescribeExtended / ShowQualifiedName
+// Hand-written: the DescribeExtended alternative makes the generator skip this rule.
 unique_ptr<SelectStatement> PEGTransformerFactory::TransformDescribeStatement(PEGTransformer &transformer,
-                                                                              unique_ptr<QueryNode> child) {
+                                                                              ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto child = transformer.Transform<unique_ptr<QueryNode>>(choice_pr.GetResult());
 	auto select_statement = make_uniq<SelectStatement>();
 	select_statement->node = std::move(child);
 	return select_statement;
@@ -147,6 +185,16 @@ ShowType PEGTransformerFactory::TransformDescribeLongRule(PEGTransformer &transf
 
 ShowType PEGTransformerFactory::TransformDescRule(PEGTransformer &transformer) {
 	return ShowType::DESCRIBE;
+}
+
+// DescribeExtended <- ShowOrDescribe ('EXTENDED' / 'FORMATTED') DescribeTarget
+// Hand-written (the inlined keyword-choice modifier makes the generator skip this rule).
+unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeExtended(PEGTransformer &transformer,
+                                                                       ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	// child 0: ShowOrDescribe, child 1: EXTENDED/FORMATTED keyword, child 2: DescribeTarget
+	auto describe_target = transformer.Transform<DescribeTarget>(list_pr.GetChild(2));
+	return BuildDescribeExtendedSelect(describe_target);
 }
 
 } // namespace duckdb_fork

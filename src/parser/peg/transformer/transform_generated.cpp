@@ -3468,15 +3468,6 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDeleteUsingClau
 	return make_uniq<TypedTransformResult<vector<unique_ptr<TableRef>>>>(std::move(result));
 }
 
-unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeStatementInternal(PEGTransformer &transformer,
-                                                                                           ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
-	auto child = transformer.Transform<unique_ptr<QueryNode>>(choice_pr.GetResult());
-	auto result = TransformDescribeStatement(transformer, std::move(child));
-	return make_uniq<TypedTransformResult<unique_ptr<SelectStatement>>>(std::move(result));
-}
-
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformShowSelectInternal(PEGTransformer &transformer,
                                                                                     ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -5752,7 +5743,6 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"TruncateStatement", &PEGTransformerFactory::TransformTruncateStatementInternal},
 	    {"TargetOptAlias", &PEGTransformerFactory::TransformTargetOptAliasInternal},
 	    {"DeleteUsingClause", &PEGTransformerFactory::TransformDeleteUsingClauseInternal},
-	    {"DescribeStatement", &PEGTransformerFactory::TransformDescribeStatementInternal},
 	    {"ShowSelect", &PEGTransformerFactory::TransformShowSelectInternal},
 	    {"ShowAllTables", &PEGTransformerFactory::TransformShowAllTablesInternal},
 	    {"ShowQualifiedName", &PEGTransformerFactory::TransformShowQualifiedNameInternal},

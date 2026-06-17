@@ -382,6 +382,12 @@ private:
 	// set.gram — SetSetting is a complex rule (choice with a group), so the generator skips it
 	static SettingInfo TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result);
 
+	// describe.gram — DescribeExtended has an inlined keyword-choice modifier, so the generator skips it; that in
+	// turn makes it skip DescribeStatement (whose choice references DescribeExtended), so both are hand-written
+	static unique_ptr<SelectStatement> TransformDescribeStatement(PEGTransformer &transformer,
+	                                                              ParseResult &parse_result);
+	static unique_ptr<QueryNode> TransformDescribeExtended(PEGTransformer &transformer, ParseResult &parse_result);
+
 	// create_trigger.gram
 	static TriggerForEach TransformForEachClause(PEGTransformer &transformer, ParseResult &parse_result);
 	static TriggerTiming TransformTriggerTiming(PEGTransformer &transformer, ParseResult &parse_result);
@@ -2077,10 +2083,6 @@ private:
 	                                                                           ParseResult &parse_result);
 	static vector<unique_ptr<TableRef>> TransformDeleteUsingClause(PEGTransformer &transformer,
 	                                                               vector<unique_ptr<TableRef>> table_ref);
-	static unique_ptr<TransformResultValue> TransformDescribeStatementInternal(PEGTransformer &transformer,
-	                                                                           ParseResult &parse_result);
-	static unique_ptr<SelectStatement> TransformDescribeStatement(PEGTransformer &transformer,
-	                                                              unique_ptr<QueryNode> child);
 	static unique_ptr<TransformResultValue> TransformShowSelectInternal(PEGTransformer &transformer,
 	                                                                    ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformShowSelect(PEGTransformer &transformer,

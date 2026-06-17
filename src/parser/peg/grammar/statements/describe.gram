@@ -1,7 +1,9 @@
-DescribeStatement <- ShowTables / ShowSelect / ShowAllTables / ShowQualifiedName
+DescribeStatement <- ShowTables / ShowSelect / ShowAllTables / DescribeExtended / ShowQualifiedName
 
 ShowSelect <- ShowOrDescribeOrSummarize SelectStatementInternal
 ShowAllTables <- ShowOrDescribe 'ALL' 'TABLES'
+# Spark's DESCRIBE [EXTENDED|FORMATTED] <table>: must precede ShowQualifiedName so the modifier is matched first
+DescribeExtended <- ShowOrDescribe ('EXTENDED' / 'FORMATTED') DescribeTarget
 ShowQualifiedName <- ShowOrDescribeOrSummarize DescribeTarget?
 ShowTables <- ShowOrDescribe 'TABLES' 'FROM' QualifiedName
 DescribeTarget <- DescribeBaseTableName / DescribeStringLiteral
