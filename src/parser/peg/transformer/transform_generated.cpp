@@ -1223,6 +1223,14 @@ PEGTransformerFactory::TransformMapAngleBracketsListTypeInternal(PEGTransformer 
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformArrayAngleBracketsTypeInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto type = transformer.Transform<LogicalType>(ExtractResultFromParens(list_pr.GetChild(1)));
+	auto result = TransformArrayAngleBracketsType(transformer, type);
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformColIdTypeInternal(PEGTransformer &transformer,
                                                                                    ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -5518,6 +5526,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"MapType", &PEGTransformerFactory::TransformMapTypeInternal},
 	    {"MapParensListType", &PEGTransformerFactory::TransformMapParensListTypeInternal},
 	    {"MapAngleBracketsListType", &PEGTransformerFactory::TransformMapAngleBracketsListTypeInternal},
+	    {"ArrayAngleBracketsType", &PEGTransformerFactory::TransformArrayAngleBracketsTypeInternal},
 	    {"ColIdType", &PEGTransformerFactory::TransformColIdTypeInternal},
 	    {"ColIdColonType", &PEGTransformerFactory::TransformColIdColonTypeInternal},
 	    {"ArrayBounds", &PEGTransformerFactory::TransformArrayBoundsInternal},

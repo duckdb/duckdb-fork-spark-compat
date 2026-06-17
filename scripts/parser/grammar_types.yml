@@ -471,6 +471,7 @@ Expression:
     - MapType
     - MapParensListType
     - MapAngleBracketsListType
+    - ArrayAngleBracketsType
     - RowType
     - GeometryType
     - VariantType

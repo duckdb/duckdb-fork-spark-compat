@@ -1308,6 +1308,10 @@ private:
 	                                                                                  ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformMapAngleBracketsListType(PEGTransformer &transformer,
 	                                                                      const vector<LogicalType> &type);
+	static unique_ptr<TransformResultValue> TransformArrayAngleBracketsTypeInternal(PEGTransformer &transformer,
+	                                                                                ParseResult &parse_result);
+	static unique_ptr<ParsedExpression> TransformArrayAngleBracketsType(PEGTransformer &transformer,
+	                                                                    const LogicalType &type);
 	static unique_ptr<TransformResultValue> TransformColIdTypeInternal(PEGTransformer &transformer,
 	                                                                   ParseResult &parse_result);
 	static pair<Identifier, LogicalType> TransformColIdType(PEGTransformer &transformer, const Identifier &col_id,

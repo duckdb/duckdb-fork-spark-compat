@@ -307,6 +307,14 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformMapAngleBracketsLis
 	return TransformMapParensListType(transformer, type);
 }
 
+// ArrayAngleBracketsType <- 'ARRAY' AngleBrackets(Type) — spark-style ARRAY<t>
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformArrayAngleBracketsType(PEGTransformer &transformer,
+                                                                                    const LogicalType &type) {
+	vector<unique_ptr<ParsedExpression>> list_children;
+	list_children.push_back(UnboundType::GetTypeExpression(type)->Copy());
+	return make_uniq<TypeExpression>(Identifier("list"), std::move(list_children));
+}
+
 unique_ptr<ParsedExpression>
 PEGTransformerFactory::TransformRowType(PEGTransformer &transformer,
                                         const child_list_t<LogicalType> &col_id_type_list) {
