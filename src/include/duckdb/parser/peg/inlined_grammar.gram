@@ -1054,12 +1054,13 @@ ViewColumn <- ColId ('COMMENT' StringLiteral)?
 
 WithSchemaMode <- 'WITH' 'SCHEMA' SchemaModeName
 SchemaModeName <- 'BINDING' / 'COMPENSATION' / 'EVOLUTION' / ('TYPE' 'EVOLUTION')
-DescribeStatement <- ShowTables / ShowSelect / ShowAllTables / DescribeExtended / ShowQualifiedName
+DescribeStatement <- ShowTables / ShowAllTables / DescribeTable / ShowSelect / ShowQualifiedName
 
 ShowSelect <- ShowOrDescribeOrSummarize SelectStatementInternal
 ShowAllTables <- ShowOrDescribe 'ALL' 'TABLES'
-# Spark's DESCRIBE [EXTENDED|FORMATTED] <table>: must precede ShowQualifiedName so the modifier is matched first
-DescribeExtended <- ShowOrDescribe ('EXTENDED' / 'FORMATTED') DescribeTarget
+# Spark's { DESC | DESCRIBE } [TABLE] [EXTENDED | FORMATTED] <table>. Ordered after ShowAllTables (so
+# DESCRIBE ALL TABLES wins) and before ShowSelect (so DESCRIBE TABLE t1 is not parsed as the TABLE t1 select).
+DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget
 ShowQualifiedName <- ShowOrDescribeOrSummarize DescribeTarget?
 ShowTables <- ShowOrDescribe 'TABLES' 'FROM' QualifiedName
 DescribeTarget <- DescribeBaseTableName / DescribeStringLiteral
