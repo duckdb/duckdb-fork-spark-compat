@@ -3,6 +3,8 @@
 #include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/expression/function_expression.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
+#include "duckdb/common/serializer/binary_serializer.hpp"
+#include "duckdb/common/serializer/memory_stream.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
@@ -40,8 +42,12 @@ static unique_ptr<QueryNode> BuildDescribeSelect(const DescribeTarget &describe_
 // Spark's DESCRIBE [QUERY] <query> is rerouted into a SELECT over the extension-registered spark_describe_query
 // table function, which binds the query and reports its output schema (col_name, data_type, comment).
 static unique_ptr<QueryNode> BuildDescribeQuerySelect(unique_ptr<SelectStatement> select_statement) {
+	// Serialize the parsed query node so spark_describe_query can rebind the exact AST. (QueryNode::ToString() is
+	// lossy: e.g. a DOUBLE literal like 10.00D renders as "10.0", which re-parses as DECIMAL.)
+	MemoryStream stream;
+	BinarySerializer::Serialize(*select_statement->node, stream);
 	vector<unique_ptr<ParsedExpression>> children;
-	children.push_back(make_uniq<ConstantExpression>(Value(select_statement->ToString())));
+	children.push_back(make_uniq<ConstantExpression>(Value::BLOB(stream.GetData(), stream.GetPosition())));
 	auto table_function = make_uniq<TableFunctionRef>();
 	table_function->function = make_uniq<FunctionExpression>(Identifier("spark_describe_query"), std::move(children));
 
