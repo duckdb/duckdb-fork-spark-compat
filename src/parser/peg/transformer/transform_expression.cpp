@@ -2629,9 +2629,26 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformTypeLiteral(PEGTran
 		type = LogicalType::UNBOUND(make_uniq<TypeExpression>(colid, vector<unique_ptr<ParsedExpression>>()));
 	}
 	auto string_literal = list_pr.Child<StringLiteralParseResult>(1).result;
-	// Year-only date literal: date'0015' → date'0015-01-01'
-	if (type.id() == LogicalTypeId::DATE && string_literal.find('-') == string::npos) {
-		string_literal += "-01-01";
+	// Spark accepts incomplete temporal literals (year-only / year-month); pad to YYYY-MM-DD so the
+	// built-in parser accepts them. e.g. date'0015'→'0015-01-01', timestamp'-000001'→'-000001-01-01'.
+	if (type.id() == LogicalTypeId::DATE || type.id() == LogicalTypeId::TIMESTAMP) {
+		// count date-component dashes, skipping an optional leading sign; bail on any time/other char
+		idx_t pos = (!string_literal.empty() && (string_literal[0] == '+' || string_literal[0] == '-')) ? 1 : 0;
+		idx_t dashes = 0;
+		bool date_only = pos < string_literal.size();
+		for (idx_t i = pos; date_only && i < string_literal.size(); i++) {
+			char c = string_literal[i];
+			if (c == '-') {
+				dashes++;
+			} else if (!StringUtil::CharacterIsDigit(c)) {
+				date_only = false;
+			}
+		}
+		if (date_only && dashes == 0) {
+			string_literal += "-01-01"; // year-only
+		} else if (date_only && dashes == 1) {
+			string_literal += "-01"; // year-month
+		}
 	}
 	auto child = make_uniq<ConstantExpression>(Value(string_literal));
 	auto result = make_uniq<CastExpression>(type, std::move(child));
