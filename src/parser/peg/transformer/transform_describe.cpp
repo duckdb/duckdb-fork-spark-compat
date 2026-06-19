@@ -37,8 +37,22 @@ static unique_ptr<QueryNode> BuildDescribeSelect(const DescribeTarget &describe_
 	return std::move(select_node);
 }
 
-// DescribeStatement <- ShowTables / ShowAllTables / DescribeTable / ShowSelect / ShowQualifiedName
-// Hand-written: the DescribeTable alternative makes the generator skip this rule.
+// Spark's DESCRIBE [QUERY] <query> is rerouted into a SELECT over the extension-registered spark_describe_query
+// table function, which binds the query and reports its output schema (col_name, data_type, comment).
+static unique_ptr<QueryNode> BuildDescribeQuerySelect(unique_ptr<SelectStatement> select_statement) {
+	vector<unique_ptr<ParsedExpression>> children;
+	children.push_back(make_uniq<ConstantExpression>(Value(select_statement->ToString())));
+	auto table_function = make_uniq<TableFunctionRef>();
+	table_function->function = make_uniq<FunctionExpression>(Identifier("spark_describe_query"), std::move(children));
+
+	auto select_node = make_uniq<SelectNode>();
+	select_node->select_list.push_back(make_uniq<StarExpression>());
+	select_node->from_table = std::move(table_function);
+	return std::move(select_node);
+}
+
+// DescribeStatement <- ShowTables / ShowAllTables / DescribeQuery / DescribeTable / ShowSelect / ShowQualifiedName
+// Hand-written: the DescribeTable/DescribeQuery alternatives make the generator skip this rule.
 unique_ptr<SelectStatement> PEGTransformerFactory::TransformDescribeStatement(PEGTransformer &transformer,
                                                                               ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -52,6 +66,10 @@ unique_ptr<SelectStatement> PEGTransformerFactory::TransformDescribeStatement(PE
 unique_ptr<QueryNode>
 PEGTransformerFactory::TransformShowSelect(PEGTransformer &transformer, const ShowType &show_or_describe_or_summarize,
                                            unique_ptr<SelectStatement> select_statement_internal) {
+	// Spark's DESC <query> (no QUERY keyword) describes the query's output schema, same as DESCRIBE QUERY.
+	if (show_or_describe_or_summarize == ShowType::DESCRIBE) {
+		return BuildDescribeQuerySelect(std::move(select_statement_internal));
+	}
 	auto result = make_uniq<ShowRef>();
 	result->show_type = show_or_describe_or_summarize;
 	result->query = std::move(select_statement_internal->node);
@@ -197,6 +215,16 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeTable(PEGTransform
 	auto describe_target = transformer.Transform<DescribeTarget>(list_pr.GetChild(3));
 	string function_name = extended ? "spark_describe_extended" : "spark_describe";
 	return BuildDescribeSelect(describe_target, function_name);
+}
+
+// DescribeQuery <- DescribeRule 'QUERY' SelectStatementInternal
+// Hand-written (referenced by DescribeStatement, which the generator skips).
+unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeQuery(PEGTransformer &transformer,
+                                                                    ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	// child 0: DescribeRule, child 1: 'QUERY', child 2: SelectStatementInternal
+	auto select_statement = transformer.Transform<unique_ptr<SelectStatement>>(list_pr.GetChild(2));
+	return BuildDescribeQuerySelect(std::move(select_statement));
 }
 
 } // namespace duckdb_fork

@@ -387,6 +387,7 @@ private:
 	static unique_ptr<SelectStatement> TransformDescribeStatement(PEGTransformer &transformer,
 	                                                              ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformDescribeTable(PEGTransformer &transformer, ParseResult &parse_result);
+	static unique_ptr<QueryNode> TransformDescribeQuery(PEGTransformer &transformer, ParseResult &parse_result);
 
 	// create_trigger.gram
 	static TriggerForEach TransformForEachClause(PEGTransformer &transformer, ParseResult &parse_result);

@@ -134,6 +134,7 @@ void PEGTransformerFactory::RegisterCommon() {
 	// DescribeStatement, whose choice references it)
 	REGISTER_TRANSFORM(TransformDescribeStatement);
 	REGISTER_TRANSFORM(TransformDescribeTable);
+	REGISTER_TRANSFORM(TransformDescribeQuery);
 }
 
 void PEGTransformerFactory::RegisterCreateMacro() {
