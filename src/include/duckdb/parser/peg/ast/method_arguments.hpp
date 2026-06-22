@@ -3,7 +3,8 @@
 #include "duckdb/parser/expression/function_expression.hpp"
 #include "duckdb/parser/result_modifier.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct MethodArguments {
 	bool distinct = false;
@@ -13,4 +14,4 @@ struct MethodArguments {
 	bool ignore_nulls = false;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork

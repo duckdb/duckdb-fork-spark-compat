@@ -159,7 +159,7 @@ def tokens_to_ast(tokens):
             inner = parse_choice()
             if peek() and peek().type == PEGTokenType.OPERATOR and peek().text == ')':
                 consume()
-            if func_name == 'Parens':
+            if func_name == 'Parens' or func_name == 'AngleBrackets':
                 return ParensNode(inner)
             elif func_name == 'List':
                 return ListMacroNode(inner)

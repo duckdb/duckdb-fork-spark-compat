@@ -4,11 +4,12 @@
 #include "duckdb/common/types.hpp"
 #include "duckdb/parser/parsed_expression.hpp"
 
-namespace duckdb {
+namespace duckdb_fork {
+using namespace duckdb;
 
 struct CastArguments {
 	unique_ptr<ParsedExpression> expression;
 	LogicalType type;
 };
 
-} // namespace duckdb
+} // namespace duckdb_fork
