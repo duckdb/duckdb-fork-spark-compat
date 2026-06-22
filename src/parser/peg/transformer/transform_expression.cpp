@@ -429,19 +429,26 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFilterClause(PEGTra
 
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformParenthesisExpression(PEGTransformer &transformer,
                                                                                    ParseResult &parse_result) {
-	// ParenthesisExpression <- Parens(List(Expression))
+	// ParenthesisExpression <- Parens(List(RowExpressionArg))
 	vector<unique_ptr<ParsedExpression>> children;
 
 	auto &list_pr = parse_result.Cast<ListParseResult>();
 	auto expressions = ExtractParseResultsFromList(ExtractResultFromParens(list_pr.Child<ListParseResult>(0)));
 
+	bool has_alias = false;
 	for (auto &expression : expressions) {
-		children.push_back(transformer.Transform<unique_ptr<ParsedExpression>>(expression));
+		auto child = transformer.Transform<unique_ptr<ParsedExpression>>(expression);
+		if (!child->GetAlias().empty()) {
+			has_alias = true;
+		}
+		children.push_back(std::move(child));
 	}
 	if (children.size() == 1) {
 		return std::move(children[0]);
 	}
-	return make_uniq<FunctionExpression>(INVALID_CATALOG, DEFAULT_SCHEMA, "row", std::move(children));
+	// If any element carries an AS alias, build a named struct (struct_pack); otherwise a positional row
+	auto func_name = has_alias ? "struct_pack" : "row";
+	return make_uniq<FunctionExpression>(INVALID_CATALOG, DEFAULT_SCHEMA, func_name, std::move(children));
 }
 
 void PEGTransformerFactory::RemoveOrderQualificationRecursive(unique_ptr<ParsedExpression> &root_expr) {

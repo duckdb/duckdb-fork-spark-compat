@@ -1251,12 +1251,17 @@ unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClauseWithAlia
 
 vector<unique_ptr<ParsedExpression>> PEGTransformerFactory::TransformValuesExpressions(PEGTransformer &transformer,
                                                                                        ParseResult &parse_result) {
+	// ValuesExpressions <- Parens(List(RowExpressionArg))
 	auto &list_pr = parse_result.Cast<ListParseResult>();
 	vector<unique_ptr<ParsedExpression>> result;
 	auto &extract_parens = ExtractResultFromParens(list_pr.Child<ListParseResult>(0));
 	auto expression_list = ExtractParseResultsFromList(extract_parens);
 	for (auto expression : expression_list) {
-		result.push_back(transformer.Transform<unique_ptr<ParsedExpression>>(expression));
+		auto expr = transformer.Transform<unique_ptr<ParsedExpression>>(expression);
+		// Spark accepts an inline AS alias inside a VALUES row but ignores it; column names come
+		// from the table alias (or default col1, col2, ...), so discard the per-element alias here.
+		expr->ClearAlias();
+		result.push_back(std::move(expr));
 	}
 	return result;
 }

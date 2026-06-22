@@ -177,4 +177,4 @@ ExpressionOptIdentifier <- Expression Identifier?
 ValuesClause <- 'VALUES' List(ValuesExpressions)
 ValuesClauseNoParens <- 'VALUES' List(Expression)
 ValuesClauseWithAlias <- (ValuesClause / ValuesClauseNoParens) TableAlias
-ValuesExpressions <- Parens(List(Expression))
+ValuesExpressions <- Parens(List(RowExpressionArg))

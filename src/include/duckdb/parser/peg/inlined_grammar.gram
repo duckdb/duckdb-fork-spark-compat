@@ -782,7 +782,7 @@ IgnoreOrRespectNulls <- IgnoreNulls / RespectNulls
 IgnoreNulls <- 'IGNORE' 'NULLS'
 RespectNulls <- 'RESPECT' 'NULLS'
 
-ParenthesisExpression <- Parens(List(Expression))
+ParenthesisExpression <- Parens(List(RowExpressionArg))
 LiteralExpression <- StringLiteral / NumberLiteral / ConstantLiteral
 ConstantLiteral <- NullLiteral / TrueLiteral / FalseLiteral
 NullLiteral <- 'NULL'
@@ -1536,7 +1536,7 @@ ExpressionOptIdentifier <- Expression Identifier?
 ValuesClause <- 'VALUES' List(ValuesExpressions)
 ValuesClauseNoParens <- 'VALUES' List(Expression)
 ValuesClauseWithAlias <- (ValuesClause / ValuesClauseNoParens) TableAlias
-ValuesExpressions <- Parens(List(Expression))
+ValuesExpressions <- Parens(List(RowExpressionArg))
 
 TransactionStatement <- BeginTransaction / RollbackTransaction / CommitTransaction
 
