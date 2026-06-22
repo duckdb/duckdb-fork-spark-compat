@@ -552,16 +552,13 @@ unique_ptr<TableRef> PEGTransformerFactory::TransformJoinByClause(PEGTransformer
 }
 
 unique_ptr<TableRef> PEGTransformerFactory::TransformLateralJoinClause(PEGTransformer &transformer,
-																	  ParseResult &parse_result) {
+                                                                       unique_ptr<TableRef> subquery_reference,
+                                                                       const optional<TableAlias> &table_alias) {
 	// Spark's `JOIN LATERAL (subquery)` is an unconditioned inner lateral join (correlation is
 	// auto-detected by the binder). Represent it as an INNER JOIN with an explicit TRUE condition.
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto subquery_reference = transformer.Transform<unique_ptr<TableRef>>(list_pr.Child<ListParseResult>(2));
-	auto &table_alias_opt = list_pr.Child<OptionalParseResult>(3);
-	if (table_alias_opt.HasResult()) {
-		auto table_alias = transformer.Transform<TableAlias>(table_alias_opt.GetResult());
-		subquery_reference->alias = table_alias.name;
-		subquery_reference->column_name_alias = table_alias.column_name_alias;
+	if (table_alias) {
+		subquery_reference->alias = table_alias->name;
+		subquery_reference->column_name_alias = table_alias->column_name_alias;
 	}
 	auto result = make_uniq<JoinRef>();
 	result->type = JoinType::INNER;
@@ -633,18 +630,14 @@ unique_ptr<TableRef> PEGTransformerFactory::TransformTableFunctionAliasColon(
 	return std::move(result);
 }
 
-unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClauseNoParens(PEGTransformer &transformer,
-																				 ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-
-	auto expression_list = ExtractParseResultsFromList(list_pr.Child<ListParseResult>(1));
-
+unique_ptr<SelectStatement>
+PEGTransformerFactory::TransformValuesClauseNoParens(PEGTransformer &transformer,
+                                                     vector<unique_ptr<ParsedExpression>> expression) {
 	auto result = make_uniq<ExpressionListRef>();
 	result->alias = "valueslist";
-	for (auto &expression_pr : expression_list) {
-		auto expression = transformer.Transform<unique_ptr<ParsedExpression>>(expression_pr);
+	for (auto &expr : expression) {
 		vector<unique_ptr<ParsedExpression>> row;
-		row.push_back(std::move(expression));
+		row.push_back(std::move(expr));
 		result->values.push_back(std::move(row));
 	}
 
@@ -657,21 +650,14 @@ unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClauseNoParens
 	return select_statement;
 }
 
-unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClauseWithAlias(PEGTransformer &transformer,
-																				  ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto &inner_list = list_pr.GetChild(0).Cast<ListParseResult>();
-	auto select_statement =
-		transformer.Transform<unique_ptr<SelectStatement>>(inner_list.Child<ChoiceParseResult>(0).GetResult());
-	auto table_alias = transformer.Transform<TableAlias>(list_pr.Child<ListParseResult>(1));
-	auto &select_node = select_statement->node->Cast<SelectNode>();
+unique_ptr<SelectStatement> PEGTransformerFactory::TransformValuesClauseWithAlias(
+    PEGTransformer &transformer, unique_ptr<SelectStatement> values_clause, const TableAlias &table_alias) {
+	auto &select_node = values_clause->node->Cast<SelectNode>();
 	auto &expr_list_ref = select_node.from_table->Cast<ExpressionListRef>();
 	expr_list_ref.alias = table_alias.name;
-	expr_list_ref.expected_names = std::move(table_alias.column_name_alias);
-	return select_statement;
+	expr_list_ref.expected_names = table_alias.column_name_alias;
+	return values_clause;
 }
-
-
 
 string PEGTransformerFactory::TransformVersionAtUnit(PEGTransformer &transformer) {
 	return "VERSION";
@@ -843,84 +829,60 @@ string PEGTransformerFactory::TransformRollupKeyword(PEGTransformer &transformer
 	return "ROLLUP";
 }
 
-GroupByNode PEGTransformerFactory::TransformGroupByList(PEGTransformer &transformer,
-                                                        vector<GroupByExpressionInfo> group_by_expression) {
-	// Check for optional trailing modifier (WITH CUBE/ROLLUP or GROUPING SETS)
-	// auto &modifier_opt = list_pr.Child<OptionalParseResult>(1);
-	// if (modifier_opt.HasResult()) {
-	// 	auto &modifier_choice = modifier_opt.GetResult().Cast<ListParseResult>().Child<ChoiceParseResult>(0);
-	// 	auto &modifier_result = modifier_choice.GetResult();
-	//
-	// 	GroupByNode result;
-	// 	GroupingExpressionMap map;
-	//
-	// 	if (StringUtil::CIEquals(modifier_result.name, "WithCubeOrRollup")) {
-	// 		// GROUP BY a, b WITH CUBE/ROLLUP
-	// 		// Extract CUBE or ROLLUP keyword
-	// 		auto &with_pr = modifier_result.Cast<ListParseResult>();
-	// 		auto type_str = transformer.Transform<string>(with_pr.Child<ListParseResult>(1));
-	//
-	// 		// Collect all preceding expressions
-	// 		vector<GroupingSet> unfolding_sets;
-	// 		for (auto &group_by_child : group_by_list) {
-	// 			auto &group_by_expr_child_list = group_by_child.get().Cast<ListParseResult>();
-	// 			auto &group_by_expr = group_by_expr_child_list.Child<ChoiceParseResult>(0).GetResult();
-	// 			auto expr = transformer.Transform<unique_ptr<ParsedExpression>>(group_by_expr);
-	// 			vector<ProjectionIndex> indexes;
-	// 			AddGroupByExpression(std::move(expr), map, result, indexes);
-	// 			GroupingSet s;
-	// 			for (auto idx : indexes) {
-	// 				s.insert(idx);
-	// 			}
-	// 			unfolding_sets.push_back(std::move(s));
-	// 		}
-	//
-	// 		if (StringUtil::CIEquals(type_str, "CUBE")) {
-	// 			CheckGroupingSetCubes(0, unfolding_sets.size());
-	// 			GroupingSet current_set;
-	// 			AddCubeSets(current_set, unfolding_sets, result.grouping_sets, 0);
-	// 		} else {
-	// 			// ROLLUP
-	// 			GroupingSet current_set;
-	// 			result.grouping_sets.push_back(current_set);
-	// 			for (idx_t i = 0; i < unfolding_sets.size(); i++) {
-	// 				current_set.insert(unfolding_sets[i].begin(), unfolding_sets[i].end());
-	// 				result.grouping_sets.push_back(current_set);
-	// 			}
-	// 		}
-	// 	} else {
-	// 		// GROUP BY a, b, c GROUPING SETS (...)
-	// 		// Add preceding expressions as group expressions (the column universe)
-	// 		for (auto &group_by_child : group_by_list) {
-	// 			auto &group_by_expr_child_list = group_by_child.get().Cast<ListParseResult>();
-	// 			auto &group_by_expr = group_by_expr_child_list.Child<ChoiceParseResult>(0).GetResult();
-	// 			auto expr = transformer.Transform<unique_ptr<ParsedExpression>>(group_by_expr);
-	// 			vector<ProjectionIndex> indexes;
-	// 			AddGroupByExpression(std::move(expr), map, result, indexes);
-	// 		}
-	// 		// Process the trailing GROUPING SETS clause
-	// 		// TrailingGroupingSets <- 'GROUPING' 'SETS' Parens(GroupByList)
-	// 		auto &trailing_gs = modifier_result.Cast<ListParseResult>();
-	// 		auto &inner_list = ExtractResultFromParens(trailing_gs.Child<ListParseResult>(2));
-	// 		// inner_list is a GroupByList, which is List(GroupByExpression) GroupByModifier?
-	// 		auto &inner_list_pr = inner_list.Cast<ListParseResult>();
-	// 		auto gs_list = ExtractParseResultsFromList(inner_list_pr.Child<ListParseResult>(0));
-	// 		for (auto &child_wrapper : gs_list) {
-	// 			auto &child_list_pr = child_wrapper.get().Cast<ListParseResult>();
-	// 			auto &child_expr = child_list_pr.Child<ChoiceParseResult>(0).GetResult();
-	// 			auto child_sets = GroupByExpressionUnfolding(transformer, child_expr, map, result);
-	// 			result.grouping_sets.insert(result.grouping_sets.end(), child_sets.begin(), child_sets.end());
-	// 		}
-	// 	}
-	// 	return result;
-	// }
+GroupByNode PEGTransformerFactory::TransformGroupByList(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto group_by_list = ExtractParseResultsFromList(list_pr.Child<ListParseResult>(0));
 
-	// No modifier: original behavior
 	GroupByNode result;
 	GroupingExpressionMap map;
 
-	for (auto &group_by_expr : group_by_expression) {
-		vector<GroupingSet> next_sets = GroupByExpressionUnfolding(group_by_expr, map, result);
+	// Optional trailing modifier: GROUP BY a, b WITH CUBE/ROLLUP  or  GROUP BY a, b GROUPING SETS (...).
+	auto &modifier_opt = list_pr.Child<OptionalParseResult>(1);
+	if (modifier_opt.HasResult()) {
+		auto &modifier_choice = modifier_opt.GetResult().Cast<ListParseResult>().Child<ChoiceParseResult>(0);
+		auto &modifier_result = modifier_choice.GetResult();
+
+		if (StringUtil::CIEquals(modifier_result.name, "WithCubeOrRollup")) {
+			// GROUP BY a, b WITH CUBE/ROLLUP is equivalent to GROUP BY CUBE/ROLLUP(a, b).
+			auto &with_pr = modifier_result.Cast<ListParseResult>();
+			auto type_str = transformer.Transform<string>(with_pr.Child<ListParseResult>(1));
+			GroupByExpressionInfo cube_rollup;
+			cube_rollup.type = StringUtil::CIEquals(type_str, "CUBE") ? GroupByExpressionInfoType::CUBE
+			                                                          : GroupByExpressionInfoType::ROLLUP;
+			for (auto &group_by_child : group_by_list) {
+				auto info = transformer.Transform<GroupByExpressionInfo>(group_by_child.get());
+				if (info.expression) {
+					cube_rollup.expressions.push_back(std::move(info.expression));
+				}
+			}
+			result.grouping_sets = GroupByExpressionUnfolding(cube_rollup, map, result);
+		} else {
+			// GROUP BY a, b, c GROUPING SETS (...): the preceding expressions form the column universe.
+			for (auto &group_by_child : group_by_list) {
+				auto info = transformer.Transform<GroupByExpressionInfo>(group_by_child.get());
+				if (info.expression) {
+					vector<ProjectionIndex> indexes;
+					AddGroupByExpression(std::move(info.expression), map, result, indexes);
+				}
+			}
+			// TrailingGroupingSets <- 'GROUPING' 'SETS' Parens(GroupByList)
+			auto &trailing_gs = modifier_result.Cast<ListParseResult>();
+			auto &inner = ExtractResultFromParens(trailing_gs.Child<ListParseResult>(2));
+			auto &inner_list_pr = inner.Cast<ListParseResult>();
+			auto gs_list = ExtractParseResultsFromList(inner_list_pr.Child<ListParseResult>(0));
+			for (auto &child_wrapper : gs_list) {
+				auto child_info = transformer.Transform<GroupByExpressionInfo>(child_wrapper.get());
+				auto child_sets = GroupByExpressionUnfolding(child_info, map, result);
+				result.grouping_sets.insert(result.grouping_sets.end(), child_sets.begin(), child_sets.end());
+			}
+		}
+		return result;
+	}
+
+	// No modifier: cartesian-combine each item's grouping sets.
+	for (auto &group_by_child : group_by_list) {
+		auto info = transformer.Transform<GroupByExpressionInfo>(group_by_child.get());
+		vector<GroupingSet> next_sets = GroupByExpressionUnfolding(info, map, result);
 
 		if (result.grouping_sets.empty()) {
 			result.grouping_sets = std::move(next_sets);
@@ -1245,7 +1207,7 @@ vector<string> PEGTransformerFactory::TransformColumnAliases(PEGTransformer &tra
 	return IdentifiersToStrings(col_id_or_string);
 }
 
-DistinctClause PEGTransformerFactory::TransformDistinctAll(PEGTransformer &transformer) {
+DistinctClause PEGTransformerFactory::TransformDistinctAll(PEGTransformer &transformer, ParseResult &parse_result) {
 	DistinctClause result;
 	result.is_distinct = false;
 	return result;
@@ -1481,10 +1443,10 @@ unique_ptr<TableRef> PEGTransformerFactory::TransformJoinWithoutOnClause(PEGTran
 	result->type = join_prefix.join_type;
 	result->right = std::move(table_ref);
 	if (join_qualifier) {
-		if (join_qualifier.on_clause) {
-			result->condition = std::move(join_qualifier.on_clause);
-		} else if (!join_qualifier.using_columns.empty()) {
-			result->using_columns = std::move(join_qualifier.using_columns);
+		if (join_qualifier->on_clause) {
+			result->condition = std::move(join_qualifier->on_clause);
+		} else if (!join_qualifier->using_columns.empty()) {
+			result->using_columns = std::move(join_qualifier->using_columns);
 		}
 		// CROSS JOIN with a condition is semantically an INNER JOIN
 		if (result->ref_type == JoinRefType::CROSS) {

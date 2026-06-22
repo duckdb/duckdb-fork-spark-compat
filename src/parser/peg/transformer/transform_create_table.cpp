@@ -76,11 +76,11 @@ unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreateTableStmt(
 	return result;
 }
 
-CreateTableDefinition
-PEGTransformerFactory::TransformCreateTableAs(PEGTransformer &transformer,  const pair<string, string> &spark_using, optional<ColumnList> identifier_list,
-                                              optional<PartitionSortedOptions> partition_sorted_options,
-                                              optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list,
-                                              unique_ptr<SQLStatement> statement, const optional<bool> &with_data) {
+CreateTableDefinition PEGTransformerFactory::TransformCreateTableAs(
+    PEGTransformer &transformer, const optional<pair<string, string>> &spark_using,
+    optional<ColumnList> identifier_list, optional<PartitionSortedOptions> partition_sorted_options,
+    optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list, unique_ptr<SQLStatement> statement,
+    const optional<bool> &with_data) {
 	// spark_using (USING <format> [LOCATION <path>]) is parsed for spark compatibility but ignored
 	CreateTableDefinition result;
 	if (identifier_list) {
@@ -115,8 +115,9 @@ ColumnList PEGTransformerFactory::TransformIdentifierList(PEGTransformer &transf
 }
 
 CreateTableDefinition PEGTransformerFactory::TransformCreateColumnList(
-    PEGTransformer &transformer, optional<ColumnElements> create_table_column_list, const pair<string, string> &spark_using,
-    optional<PartitionSortedOptions> partition_sorted_options, optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list) {
+    PEGTransformer &transformer, optional<ColumnElements> create_table_column_list,
+    const optional<pair<string, string>> &spark_using, optional<PartitionSortedOptions> partition_sorted_options,
+    optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list) {
 	// spark_using (USING <format> [LOCATION <path>]) is parsed for spark compatibility but ignored
 	if (!create_table_column_list || create_table_column_list->columns.empty()) {
 		throw ParserException("Table must have at least one column!");
@@ -137,8 +138,8 @@ CreateTableDefinition PEGTransformerFactory::TransformCreateColumnList(
 // SparkUsing <- 'USING' Identifier SparkLocation?
 pair<string, string> PEGTransformerFactory::TransformSparkUsing(PEGTransformer &transformer,
                                                                 const Identifier &identifier,
-                                                                const string &spark_location) {
-	return make_pair(identifier.GetIdentifierName(), spark_location);
+                                                                const optional<string> &spark_location) {
+	return make_pair(identifier.GetIdentifierName(), spark_location ? *spark_location : string());
 }
 
 bool PEGTransformerFactory::TransformOrReplace(PEGTransformer &transformer) {
@@ -237,11 +238,14 @@ vector<string> PEGTransformerFactory::TransformDottedIdentifier(PEGTransformer &
 // Hand-written dispatcher: the alternatives do not all produce a ColumnConstraintEntry — ColumnComment (a spark
 // compatibility addition) produces a plain string, so it is wrapped into an entry here.
 ColumnConstraintEntry PEGTransformerFactory::TransformColumnConstraint(PEGTransformer &transformer,
-                                                                       unique_ptr<ParsedExpression> &expression) {
-	ColumnConstraintEntry entry;
-	entry.constraint_name = "ColumnComment";
-	entry.expression = std::move(expression);
-	return entry;
+                                                                       ParseResult &choice_result) {
+	if (choice_result.name == "ColumnComment") {
+		ColumnConstraintEntry entry;
+		entry.constraint_name = "ColumnComment";
+		entry.expression = make_uniq<ConstantExpression>(Value(transformer.Transform<string>(choice_result)));
+		return entry;
+	}
+	return transformer.Transform<ColumnConstraintEntry>(choice_result);
 }
 
 ConstraintColumnDefinition PEGTransformerFactory::TransformColumnDefinition(

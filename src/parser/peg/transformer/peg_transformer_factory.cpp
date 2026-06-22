@@ -129,6 +129,8 @@ void PEGTransformerFactory::RegisterCommon() {
 	REGISTER_TRANSFORM(TransformNumberLiteral);
 	REGISTER_TRANSFORM(TransformStringLiteral);
 	REGISTER_TRANSFORM(TransformIntervalToIntervalAsType);
+	// set.gram
+	REGISTER_TRANSFORM(TransformSetSetting);
 }
 
 void PEGTransformerFactory::RegisterCreateTable() {
@@ -142,6 +144,11 @@ void PEGTransformerFactory::RegisterExpression() {
 	REGISTER_TRANSFORM(TransformExpression);
 	REGISTER_TRANSFORM(TransformPrefixExpression);
 	REGISTER_TRANSFORM(TransformOverClause);
+	REGISTER_TRANSFORM(TransformLikeAnyAllClause);
+	REGISTER_TRANSFORM(TransformLikeAnyOrAll);
+	REGISTER_TRANSFORM(TransformLikeAny);
+	REGISTER_TRANSFORM(TransformLikeAll);
+	REGISTER_TRANSFORM(TransformTimestampDiffExpression);
 }
 
 void PEGTransformerFactory::RegisterPivot() {
@@ -158,6 +165,11 @@ void PEGTransformerFactory::RegisterSelect() {
 	REGISTER_TRANSFORM(TransformTableRef);
 	REGISTER_TRANSFORM(TransformWithClause);
 	REGISTER_TRANSFORM(TransformWindowDefinition);
+	REGISTER_TRANSFORM(TransformGroupByList);
+	REGISTER_TRANSFORM(TransformGroupByModifier);
+	REGISTER_TRANSFORM(TransformWithCubeOrRollup);
+	REGISTER_TRANSFORM(TransformTrailingGroupingSets);
+	REGISTER_TRANSFORM(TransformDistinctAll);
 }
 
 void PEGTransformerFactory::RegisterKeywordsAndIdentifiers() {

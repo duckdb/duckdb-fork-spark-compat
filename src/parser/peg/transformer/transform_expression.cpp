@@ -656,9 +656,15 @@ PEGTransformerFactory::TransformLogicalNotExpression(PEGTransformer &transformer
 	return expr;
 }
 
-unique_ptr<ParsedExpression> PEGTransformerFactory::TransformSparkNotExpression(PEGTransformer &transformer,
-																				ParseResult &parse_result) {
-	return transformer.Transform<unique_ptr<ParsedExpression>>(parse_result);
+// NotExpression: one bool per NOT/! token; only the count is used (TransformLogicalNotExpression applies them).
+vector<bool> PEGTransformerFactory::TransformNotExpression(PEGTransformer &transformer,
+                                                           vector<unique_ptr<ParsedExpression>> spark_not_expression) {
+	return vector<bool>(spark_not_expression.size(), true);
+}
+
+// SparkNotExpression: a NOT marker with no semantic value of its own.
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformSparkNotExpression(PEGTransformer &transformer) {
+	return nullptr;
 }
 
 unique_ptr<ParsedExpression>
@@ -707,10 +713,6 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformNotNullOperator(PEG
 
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformIsNullOperator(PEGTransformer &transformer) {
 	return make_uniq<OperatorExpression>(ExpressionType::OPERATOR_IS_NULL, nullptr);
-}
-
-bool PEGTransformerFactory::TransformNotKeyword(PEGTransformer &transformer) {
-	return true;
 }
 
 unique_ptr<ParsedExpression>
@@ -969,8 +971,14 @@ bool PEGTransformerFactory::TransformLikeAnyOrAll(PEGTransformer &transformer, P
 	return transformer.Transform<bool>(list_pr.Child<ChoiceParseResult>(0).GetResult());
 }
 
-bool PEGTransformerFactory::TransformLikeAny() {
+// LikeAny <- 'ANY'
+bool PEGTransformerFactory::TransformLikeAny(PEGTransformer &transformer, ParseResult &parse_result) {
 	return true;
+}
+
+// LikeAll <- 'ALL'
+bool PEGTransformerFactory::TransformLikeAll(PEGTransformer &transformer, ParseResult &parse_result) {
+	return false;
 }
 
 // Remove calls to transformEnum, rewrite into simple Transform methods
@@ -1253,8 +1261,7 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformMultiplicativeExpre
 		} else {
 			vector<unique_ptr<ParsedExpression>> factor_children;
 			factor_children.push_back(std::move(expr));
-			factor_children.push_back(
-			    std::move(factor_expr.expression));
+			factor_children.push_back(std::move(factor_expr.expression));
 			auto func_expr = make_uniq<FunctionExpression>(Identifier(std::move(factor)), std::move(factor_children));
 			func_expr->IsOperatorMutable() = true;
 			expr = std::move(func_expr);
@@ -2135,7 +2142,7 @@ PEGTransformerFactory::TransformExtractExpression(PEGTransformer &transformer,
 }
 
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformTimestampDiffExpression(PEGTransformer &transformer,
-																					 ParseResult &parse_result) {
+                                                                                     ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
 	auto &inner = ExtractResultFromParens(list_pr.Child<ListParseResult>(1)).Cast<ListParseResult>();
 	vector<unique_ptr<ParsedExpression>> expr_children;
@@ -2209,8 +2216,7 @@ PEGTransformerFactory::TransformRowExpression(PEGTransformer &transformer,
 
 	vector<unique_ptr<ParsedExpression>> results;
 	bool has_alias = false;
-	for (auto expr : expression) {
-		auto child = transformer.Transform<unique_ptr<ParsedExpression>>(expr);
+	for (auto &child : *expression) {
 		if (!child->GetAlias().empty()) {
 			has_alias = true;
 		}
@@ -2222,23 +2228,17 @@ PEGTransformerFactory::TransformRowExpression(PEGTransformer &transformer,
 	return std::move(func_expr);
 }
 
-unique_ptr<ParsedExpression> PEGTransformerFactory::TransformRowExpressionArg(PEGTransformer &transformer,
-                                                                              ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	// Child 0: Expression, Child 1: RowExpressionAlias?
-	auto expr = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.Child<ListParseResult>(0));
-	auto &alias_opt = list_pr.Child<OptionalParseResult>(1);
-	if (alias_opt.HasResult()) {
-		auto alias = transformer.Transform<string>(alias_opt.GetResult());
-		expr->SetAlias(Identifier(alias));
+unique_ptr<ParsedExpression>
+PEGTransformerFactory::TransformRowExpressionArg(PEGTransformer &transformer, unique_ptr<ParsedExpression> expression,
+                                                 const optional<string> &row_expression_alias) {
+	if (row_expression_alias) {
+		expression->SetAlias(Identifier(*row_expression_alias));
 	}
-	return expr;
+	return expression;
 }
 
-string PEGTransformerFactory::TransformRowExpressionAlias(PEGTransformer &transformer, ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	// Child 0: 'AS', Child 1: ColId
-	return transformer.Transform<string>(list_pr.Child<ListParseResult>(1));
+string PEGTransformerFactory::TransformRowExpressionAlias(PEGTransformer &transformer, const Identifier &col_id) {
+	return col_id.GetIdentifierName();
 }
 
 unique_ptr<ParsedExpression>
@@ -2455,7 +2455,10 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformTypeLiteral(PEGTran
 	// built-in parser accepts them. e.g. date'0015'→'0015-01-01', timestamp'-000001'→'-000001-01-01'.
 	if (type.id() == LogicalTypeId::DATE || type.id() == LogicalTypeId::TIMESTAMP) {
 		// count date-component dashes, skipping an optional leading sign; bail on any time/other char
-		idx_t pos = (!mutable_string_literal.empty() && (mutable_string_literal[0] == '+' || mutable_string_literal[0] == '-')) ? 1 : 0;
+		idx_t pos =
+		    (!mutable_string_literal.empty() && (mutable_string_literal[0] == '+' || mutable_string_literal[0] == '-'))
+		        ? 1
+		        : 0;
 		idx_t dashes = 0;
 		bool date_only = pos < mutable_string_literal.size();
 		for (idx_t i = pos; date_only && i < mutable_string_literal.size(); i++) {

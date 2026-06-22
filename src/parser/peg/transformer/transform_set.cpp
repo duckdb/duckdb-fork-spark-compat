@@ -29,7 +29,7 @@ PEGTransformerFactory::TransformSetAssignment(PEGTransformer &transformer,
 	return variable_list;
 }
 
-//TODO: Mine was:
+// TODO: Mine was:
 // // SetSetting <- DottedSettingIdentifier / (SettingScope? SettingName)
 // // Complex rule (choice with a group) — skipped by the generator, so this is a hand-written entry point.
 // SettingInfo PEGTransformerFactory::TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result) {
@@ -52,23 +52,31 @@ PEGTransformerFactory::TransformSetAssignment(PEGTransformer &transformer,
 // 	return result;
 // }
 
-
-// SetSetting <- SettingScope? SettingName
-SettingInfo PEGTransformerFactory::TransformSetSetting(PEGTransformer &transformer,
-                                                       const optional<SetScope> &setting_scope,
-                                                       const Identifier &setting_name) {
+// SetSetting <- DottedSettingIdentifier / (SettingScope? SettingName)
+// Complex choice-with-group rule: skipped by the generator, so this is a hand-written entry point.
+SettingInfo PEGTransformerFactory::TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto &result_pr = list_pr.Child<ChoiceParseResult>(0).GetResult();
 	SettingInfo result;
-	result.name = setting_name;
-	if (setting_scope) {
-		result.scope = *setting_scope;
+	if (result_pr.name == "DottedSettingIdentifier") {
+		// spark-style dotted setting, e.g. SET spark.sql.shuffle.partitions = 1
+		result.name = Identifier(transformer.Transform<string>(result_pr));
+		return result;
+	}
+	// (SettingScope? SettingName)
+	auto &seq_pr = result_pr.Cast<ListParseResult>();
+	auto &optional_scope_pr = seq_pr.Child<OptionalParseResult>(0);
+	result.name = seq_pr.Child<IdentifierParseResult>(1).identifier;
+	if (optional_scope_pr.HasResult()) {
+		result.scope = transformer.Transform<SetScope>(optional_scope_pr.GetResult());
 	}
 	return result;
 }
 
 // DottedSettingIdentifier <- Identifier ('.' Identifier)+
 string PEGTransformerFactory::TransformDottedSettingIdentifier(PEGTransformer &transformer,
-															   const Identifier &identifier,
-															   const vector<Identifier> &identifier_1) {
+                                                               const Identifier &identifier,
+                                                               const vector<Identifier> &identifier_1) {
 	string result = identifier.GetIdentifierName();
 	for (auto &part : identifier_1) {
 		result += ".";

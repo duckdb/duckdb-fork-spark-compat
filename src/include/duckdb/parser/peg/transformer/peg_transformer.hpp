@@ -364,6 +364,13 @@ public:
 	static unique_ptr<ParsedExpression> TransformPrefixExpression(PEGTransformer &transformer,
 	                                                              ParseResult &parse_result);
 	static unique_ptr<WindowExpression> TransformOverClause(PEGTransformer &transformer, ParseResult &parse_result);
+	static unique_ptr<ParsedExpression> TransformLikeAnyAllClause(PEGTransformer &transformer,
+	                                                              ParseResult &parse_result);
+	static bool TransformLikeAnyOrAll(PEGTransformer &transformer, ParseResult &parse_result);
+	static bool TransformLikeAny(PEGTransformer &transformer, ParseResult &parse_result);
+	static bool TransformLikeAll(PEGTransformer &transformer, ParseResult &parse_result);
+	static unique_ptr<ParsedExpression> TransformTimestampDiffExpression(PEGTransformer &transformer,
+	                                                                     ParseResult &parse_result);
 
 	// pivot.gram
 	static unique_ptr<SelectStatement> TransformPivotStatement(PEGTransformer &transformer, ParseResult &parse_result);
@@ -380,7 +387,15 @@ public:
 	static CommonTableExpressionMap TransformWithClause(PEGTransformer &transformer, ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformWindowDefinition(PEGTransformer &transformer,
 	                                                              ParseResult &parse_result);
+	static GroupByNode TransformGroupByList(PEGTransformer &transformer, ParseResult &parse_result);
+	static string TransformGroupByModifier(PEGTransformer &transformer, ParseResult &parse_result);
+	static string TransformWithCubeOrRollup(PEGTransformer &transformer, ParseResult &parse_result);
+	static GroupByNode TransformTrailingGroupingSets(PEGTransformer &transformer, ParseResult &parse_result);
+	static DistinctClause TransformDistinctAll(PEGTransformer &transformer, ParseResult &parse_result);
 	static string TransformIdentifierOrKeyword(PEGTransformer &transformer, ParseResult &parse_result);
+
+	// set.gram
+	static SettingInfo TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result);
 
 	//===--------------------------------------------------------------------===//
 	// START GENERATED RULES
@@ -1659,6 +1674,10 @@ public:
 	                                                                           ParseResult &parse_result);
 	static vector<unique_ptr<TableRef>> TransformDeleteUsingClause(PEGTransformer &transformer,
 	                                                               vector<unique_ptr<TableRef>> table_ref);
+	static unique_ptr<TransformResultValue> TransformDescribeStatementInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static unique_ptr<SelectStatement> TransformDescribeStatement(PEGTransformer &transformer,
+	                                                              unique_ptr<QueryNode> child);
 	static unique_ptr<TransformResultValue> TransformShowSelectInternal(PEGTransformer &transformer,
 	                                                                    ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformShowSelect(PEGTransformer &transformer,
@@ -1667,6 +1686,15 @@ public:
 	static unique_ptr<TransformResultValue> TransformShowAllTablesInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformShowAllTables(PEGTransformer &transformer, const ShowType &show_or_describe);
+	static unique_ptr<TransformResultValue> TransformDescribeQueryInternal(PEGTransformer &transformer,
+	                                                                       ParseResult &parse_result);
+	static unique_ptr<QueryNode> TransformDescribeQuery(PEGTransformer &transformer, const ShowType &describe_rule,
+	                                                    unique_ptr<SelectStatement> select_statement_internal);
+	static unique_ptr<TransformResultValue> TransformDescribeTableInternal(PEGTransformer &transformer,
+	                                                                       ParseResult &parse_result);
+	static unique_ptr<QueryNode> TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule,
+	                                                    const bool &has_result, const bool &has_result_1,
+	                                                    DescribeTarget describe_target);
 	static unique_ptr<TransformResultValue> TransformShowQualifiedNameInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformShowQualifiedName(PEGTransformer &transformer,
@@ -2428,6 +2456,8 @@ public:
 	                                                                         ParseResult &parse_result);
 	static BetweenInLikeOperator TransformBetweenInLikeOp(PEGTransformer &transformer, const bool &has_result,
 	                                                      unique_ptr<ParsedExpression> between_in_like_op_expression);
+	static unique_ptr<TransformResultValue> TransformBetweenInLikeOpExpressionInternal(PEGTransformer &transformer,
+	                                                                                   ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformLikeClauseInternal(PEGTransformer &transformer,
 	                                                                    ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformLikeClause(PEGTransformer &transformer, const string &like_variations,

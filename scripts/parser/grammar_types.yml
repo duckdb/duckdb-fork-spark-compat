@@ -136,6 +136,8 @@ QueryNode:
     - ShowTables
     - ShowAllTables
     - ShowQualifiedName
+    - DescribeQuery
+    - DescribeTable
 
 SelectNode:
   type: "unique_ptr<SelectNode>"
@@ -432,6 +434,7 @@ Expression:
     - ColumnsExpression
     - ExtractExpression
     - TimestampDiffExpression
+    - LikeAnyAllClause
     - ExtractArgument
     - ExtractDatePartArgument
     - ExtractIdentifierArgument
@@ -771,6 +774,7 @@ GroupByNode:
     - GroupByExpressions
     - GroupByAll
     - GroupByList
+    - TrailingGroupingSets
 
 LimitPercentResult:
   type: "LimitPercentResult"
@@ -972,6 +976,8 @@ String:
   by_value: false
   rules:
     - RowExpressionAlias
+    - GroupByModifier
+    - WithCubeOrRollup
     - StringLiteral
     - DropOrSet
     - SequenceName
@@ -1071,6 +1077,9 @@ Bool:
     - GroupingIdKeyword
     - SubqueryNot
     - SubqueryExists
+    - LikeAnyOrAll
+    - LikeAny
+    - LikeAll
     - WithData
     - WithDataOnly
     - WithNoData
@@ -1720,6 +1729,17 @@ matcher_rule_overrides:
 # ---------------------------------------------------------------------------
 
 excluded_rules:
+  - GroupByList
+  - GroupByModifier
+  - WithCubeOrRollup
+  - TrailingGroupingSets
+  - DistinctAll
+  - SetSetting
+  - LikeAnyAllClause
+  - LikeAnyOrAll
+  - LikeAny
+  - LikeAll
+  - TimestampDiffExpression
   - PivotStatement
   - UnpivotStatement
   - CommentValue
