@@ -29,32 +29,46 @@ PEGTransformerFactory::TransformSetAssignment(PEGTransformer &transformer,
 	return variable_list;
 }
 
-// SetSetting <- DottedSettingIdentifier / (SettingScope? SettingName)
-// Complex rule (choice with a group) — skipped by the generator, so this is a hand-written entry point.
-SettingInfo PEGTransformerFactory::TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto &result_pr = list_pr.Child<ChoiceParseResult>(0).GetResult();
+//TODO: Mine was:
+// // SetSetting <- DottedSettingIdentifier / (SettingScope? SettingName)
+// // Complex rule (choice with a group) — skipped by the generator, so this is a hand-written entry point.
+// SettingInfo PEGTransformerFactory::TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result) {
+// 	auto &list_pr = parse_result.Cast<ListParseResult>();
+// 	auto &result_pr = list_pr.Child<ChoiceParseResult>(0).GetResult();
+//
+// 	SettingInfo result;
+// 	if (result_pr.name == "DottedSettingIdentifier") {
+// 		// spark-style dotted setting, e.g. SET spark.sql.shuffle.partitions = 1
+// 		result.name = Identifier(transformer.Transform<string>(result_pr));
+// 		return result;
+// 	}
+// 	// (SettingScope? SettingName)
+// 	auto &seq_pr = result_pr.Cast<ListParseResult>();
+// 	auto &optional_scope_pr = seq_pr.Child<OptionalParseResult>(0);
+// 	result.name = seq_pr.Child<IdentifierParseResult>(1).identifier;
+// 	if (optional_scope_pr.HasResult()) {
+// 		result.scope = transformer.Transform<SetScope>(optional_scope_pr.GetResult());
+// 	}
+// 	return result;
+// }
 
+
+// SetSetting <- SettingScope? SettingName
+SettingInfo PEGTransformerFactory::TransformSetSetting(PEGTransformer &transformer,
+                                                       const optional<SetScope> &setting_scope,
+                                                       const Identifier &setting_name) {
 	SettingInfo result;
-	if (result_pr.name == "DottedSettingIdentifier") {
-		// spark-style dotted setting, e.g. SET spark.sql.shuffle.partitions = 1
-		result.name = Identifier(transformer.Transform<string>(result_pr));
-		return result;
-	}
-	// (SettingScope? SettingName)
-	auto &seq_pr = result_pr.Cast<ListParseResult>();
-	auto &optional_scope_pr = seq_pr.Child<OptionalParseResult>(0);
-	result.name = seq_pr.Child<IdentifierParseResult>(1).identifier;
-	if (optional_scope_pr.HasResult()) {
-		result.scope = transformer.Transform<SetScope>(optional_scope_pr.GetResult());
+	result.name = setting_name;
+	if (setting_scope) {
+		result.scope = *setting_scope;
 	}
 	return result;
 }
 
 // DottedSettingIdentifier <- Identifier ('.' Identifier)+
 string PEGTransformerFactory::TransformDottedSettingIdentifier(PEGTransformer &transformer,
-                                                               const Identifier &identifier,
-                                                               const vector<Identifier> &identifier_1) {
+															   const Identifier &identifier,
+															   const vector<Identifier> &identifier_1) {
 	string result = identifier.GetIdentifierName();
 	for (auto &part : identifier_1) {
 		result += ".";
@@ -168,7 +182,7 @@ SetScope PEGTransformerFactory::TransformGlobalScope(PEGTransformer &transformer
 // ZoneIntervalWithInterval <- 'INTERVAL' StringLiteral Interval?
 unique_ptr<ParsedExpression>
 PEGTransformerFactory::TransformZoneIntervalWithInterval(PEGTransformer &transformer, const string &string_literal,
-                                                         const DatePartSpecifier &interval) {
+                                                         const optional<DatePartSpecifier> &interval) {
 	auto expr = make_uniq<ConstantExpression>(Value(string_literal));
 	return make_uniq<CastExpression>(LogicalType::INTERVAL, std::move(expr));
 }

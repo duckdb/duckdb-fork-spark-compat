@@ -7,14 +7,16 @@ using namespace duckdb;
 
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformDropStatement(PEGTransformer &transformer,
                                                                        unique_ptr<DropStatement> drop_entries,
-                                                                       const bool &drop_behavior) {
-	drop_entries->info->cascade = drop_behavior;
+                                                                       const optional<bool> &drop_behavior) {
+	if (drop_behavior) {
+		drop_entries->info->cascade = *drop_behavior;
+	}
 	return std::move(drop_entries);
 }
 
 unique_ptr<DropStatement> PEGTransformerFactory::TransformDropTable(PEGTransformer &transformer,
                                                                     const CatalogType &table_or_view,
-                                                                    const bool &if_exists,
+                                                                    const optional<bool> &if_exists,
                                                                     vector<unique_ptr<BaseTableRef>> base_table_name) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
@@ -45,7 +47,7 @@ bool PEGTransformerFactory::TransformFunctionTypeFunction(PEGTransformer &transf
 
 unique_ptr<DropStatement>
 PEGTransformerFactory::TransformDropTableFunction(PEGTransformer &transformer, const CatalogType &comment_macro_table,
-                                                  const bool &if_exists,
+                                                  const optional<bool> &if_exists,
                                                   const vector<Identifier> &table_function_name) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
@@ -63,7 +65,8 @@ PEGTransformerFactory::TransformDropTableFunction(PEGTransformer &transformer, c
 
 unique_ptr<DropStatement>
 PEGTransformerFactory::TransformDropFunction(PEGTransformer &transformer, const bool &function_type_macro,
-                                             const bool &if_exists, const vector<QualifiedName> &function_identifier) {
+                                             const optional<bool> &if_exists,
+                                             const vector<QualifiedName> &function_identifier) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
 	auto catalog_type = CatalogType::MACRO_ENTRY;
@@ -81,7 +84,7 @@ PEGTransformerFactory::TransformDropFunction(PEGTransformer &transformer, const 
 }
 
 unique_ptr<DropStatement>
-PEGTransformerFactory::TransformDropSchema(PEGTransformer &transformer, const bool &if_exists,
+PEGTransformerFactory::TransformDropSchema(PEGTransformer &transformer, const optional<bool> &if_exists,
                                            const vector<QualifiedName> &qualified_schema_name) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
@@ -114,7 +117,8 @@ QualifiedName PEGTransformerFactory::TransformCatalogReservedSchema(PEGTransform
 	return result;
 }
 
-unique_ptr<DropStatement> PEGTransformerFactory::TransformDropIndex(PEGTransformer &transformer, const bool &if_exists,
+unique_ptr<DropStatement> PEGTransformerFactory::TransformDropIndex(PEGTransformer &transformer,
+                                                                    const optional<bool> &if_exists,
                                                                     const vector<QualifiedName> &qualified_index_name) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
@@ -161,7 +165,7 @@ QualifiedName PEGTransformerFactory::TransformCatalogReservedSchemaIndex(
 }
 
 unique_ptr<DropStatement>
-PEGTransformerFactory::TransformDropSequence(PEGTransformer &transformer, const bool &if_exists,
+PEGTransformerFactory::TransformDropSequence(PEGTransformer &transformer, const optional<bool> &if_exists,
                                              const vector<QualifiedName> &qualified_sequence_name) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
@@ -187,7 +191,7 @@ Identifier PEGTransformerFactory::TransformCollationName(PEGTransformer &transfo
 }
 
 unique_ptr<DropStatement> PEGTransformerFactory::TransformDropCollation(PEGTransformer &transformer,
-                                                                        const bool &if_exists,
+                                                                        const optional<bool> &if_exists,
                                                                         const vector<Identifier> &collation_name) {
 	throw NotImplementedException("Cannot drop collation yet");
 	/*
@@ -207,7 +211,8 @@ unique_ptr<DropStatement> PEGTransformerFactory::TransformDropCollation(PEGTrans
 	*/
 }
 
-unique_ptr<DropStatement> PEGTransformerFactory::TransformDropType(PEGTransformer &transformer, const bool &if_exists,
+unique_ptr<DropStatement> PEGTransformerFactory::TransformDropType(PEGTransformer &transformer,
+                                                                   const optional<bool> &if_exists,
                                                                    const vector<QualifiedName> &qualified_type_name) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
@@ -241,19 +246,23 @@ bool PEGTransformerFactory::TransformIfExists(PEGTransformer &transformer) {
 }
 
 unique_ptr<DropStatement> PEGTransformerFactory::TransformDropSecret(PEGTransformer &transformer,
-                                                                     const SecretPersistType &temporary,
-                                                                     const bool &if_exists,
+                                                                     const optional<SecretPersistType> &temporary,
+                                                                     const optional<bool> &if_exists,
                                                                      const Identifier &secret_name,
-                                                                     const Identifier &drop_secret_storage) {
+                                                                     const optional<Identifier> &drop_secret_storage) {
 	auto result = make_uniq<DropStatement>();
 	auto info = make_uniq<DropInfo>();
 	info->type = CatalogType::SECRET_ENTRY;
 	auto extra_drop_info = make_uniq<ExtraDropSecretInfo>();
-	extra_drop_info->persist_mode = temporary;
+	if (temporary) {
+		extra_drop_info->persist_mode = *temporary;
+	}
 
 	info->if_not_found = if_exists ? OnEntryNotFound::RETURN_NULL : OnEntryNotFound::THROW_EXCEPTION;
 	info->name = secret_name;
-	extra_drop_info->secret_storage = drop_secret_storage.GetIdentifierName();
+	if (drop_secret_storage) {
+		extra_drop_info->secret_storage = drop_secret_storage->GetIdentifierName();
+	}
 	info->extra_drop_info = std::move(extra_drop_info);
 	result->info = std::move(info);
 	return result;
@@ -265,7 +274,7 @@ Identifier PEGTransformerFactory::TransformDropSecretStorage(PEGTransformer &tra
 }
 
 unique_ptr<DropStatement> PEGTransformerFactory::TransformDropTrigger(PEGTransformer &transformer,
-                                                                      const bool &if_exists,
+                                                                      const optional<bool> &if_exists,
                                                                       const Identifier &trigger_name,
                                                                       unique_ptr<BaseTableRef> base_table_name) {
 	auto result = make_uniq<DropStatement>();

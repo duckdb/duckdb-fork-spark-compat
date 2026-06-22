@@ -47,8 +47,8 @@ struct ListSegmentFunctions;
 typedef ListSegment *(*create_segment_t)(const ListSegmentFunctions &functions, ArenaAllocator &allocator,
                                          uint16_t capacity);
 typedef void (*write_data_to_segment_t)(const ListSegmentFunctions &functions, ArenaAllocator &allocator,
-                                        ListSegment *segment, RecursiveUnifiedVectorFormat &input_data,
-                                        idx_t &entry_idx);
+                                        ListSegment *segment, RecursiveUnifiedVectorFormat &input_data, idx_t offset,
+                                        idx_t count);
 //! Scans up to "count" rows from the state's current position into the result vector at result_offset,
 //! advancing the state - returns the number of rows scanned (less than "count" only if the scan is exhausted)
 typedef idx_t (*scan_data_t)(const ListSegmentFunctions &functions, ListSegmentScanState &state, idx_t count,
@@ -62,8 +62,9 @@ struct ListSegmentFunctions {
 
 	vector<ListSegmentFunctions> child_functions;
 
-	void AppendRow(ArenaAllocator &allocator, LinkedList &linked_list, RecursiveUnifiedVectorFormat &input_data,
-	               idx_t &entry_idx) const;
+	//! Append "count" rows of input_data (starting at "offset") to the linked list
+	void AppendRows(ArenaAllocator &allocator, LinkedList &linked_list, RecursiveUnifiedVectorFormat &input_data,
+	                idx_t offset, idx_t count) const;
 	//! Append all rows of the given list entry (indexing into child_data) to the linked list
 	void AppendListEntry(ArenaAllocator &allocator, LinkedList &linked_list, RecursiveUnifiedVectorFormat &child_data,
 	                     const list_entry_t &list_entry) const;
@@ -80,23 +81,5 @@ struct ListSegmentFunctions {
 };
 
 void GetSegmentDataFunctions(ListSegmentFunctions &functions, const LogicalType &type);
-
-//! Append a single non-NULL value to a linked list using the standard list segment layout.
-//! Values appended this way are interchangeable with values appended through ListSegmentFunctions::AppendRow.
-template <class T>
-void ListSegmentAppendValue(ArenaAllocator &allocator, LinkedList &linked_list, const T &value);
-
-//! Strings copy their characters into the child segments of the linked list.
-template <>
-void ListSegmentAppendValue(ArenaAllocator &allocator, LinkedList &linked_list, const string_t &value);
-
-//! Append all (non-NULL) values of the source linked list to the target linked list by traversing its segments.
-//! The values must have been appended through ListSegmentAppendValue / the standard list segment layout.
-template <class T>
-void ListSegmentCopy(ArenaAllocator &allocator, const LinkedList &source, LinkedList &target);
-
-//! Strings re-assemble their characters from the child segments of the source linked list.
-template <>
-void ListSegmentCopy<string_t>(ArenaAllocator &allocator, const LinkedList &source, LinkedList &target);
 
 } // namespace duckdb
