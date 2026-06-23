@@ -166,6 +166,8 @@ enum class DatePartSpecifier : uint8_t;
 
 enum class DebugInitialize : uint8_t;
 
+enum class DebugOrderVerification : uint8_t;
+
 enum class DebugStatementVerification : uint8_t;
 
 enum class DebugVectorVerification : uint8_t;
@@ -183,6 +185,8 @@ enum class DeprecatedIndexType : uint8_t;
 enum class DeprecatedUsingKeySyntax : uint8_t;
 
 enum class DestroyBufferUpon : uint8_t;
+
+enum class DialectCompatibilityMode : uint8_t;
 
 enum class DistinctCountSource : uint8_t;
 
@@ -249,6 +253,8 @@ enum class GateStatus : uint8_t;
 enum class GeometryStorageType : uint8_t;
 
 enum class GeometryType : uint8_t;
+
+enum class GroupByExpressionInfoType : uint8_t;
 
 enum class HLLStorageType : uint8_t;
 
@@ -485,6 +491,8 @@ enum class SuggestionState : uint8_t;
 enum class TableColumnType : uint8_t;
 
 enum class TableFilterType : uint8_t;
+
+enum class TableFunctionIdentifierConversion : uint8_t;
 
 enum class TableFunctionParallelism : uint8_t;
 
@@ -757,6 +765,9 @@ template<>
 const char* EnumUtil::ToChars<DebugInitialize>(DebugInitialize value);
 
 template<>
+const char* EnumUtil::ToChars<DebugOrderVerification>(DebugOrderVerification value);
+
+template<>
 const char* EnumUtil::ToChars<DebugStatementVerification>(DebugStatementVerification value);
 
 template<>
@@ -782,6 +793,9 @@ const char* EnumUtil::ToChars<DeprecatedUsingKeySyntax>(DeprecatedUsingKeySyntax
 
 template<>
 const char* EnumUtil::ToChars<DestroyBufferUpon>(DestroyBufferUpon value);
+
+template<>
+const char* EnumUtil::ToChars<DialectCompatibilityMode>(DialectCompatibilityMode value);
 
 template<>
 const char* EnumUtil::ToChars<DistinctCountSource>(DistinctCountSource value);
@@ -881,6 +895,9 @@ const char* EnumUtil::ToChars<GeometryStorageType>(GeometryStorageType value);
 
 template<>
 const char* EnumUtil::ToChars<GeometryType>(GeometryType value);
+
+template<>
+const char* EnumUtil::ToChars<GroupByExpressionInfoType>(GroupByExpressionInfoType value);
 
 template<>
 const char* EnumUtil::ToChars<HLLStorageType>(HLLStorageType value);
@@ -1237,6 +1254,9 @@ template<>
 const char* EnumUtil::ToChars<TableFilterType>(TableFilterType value);
 
 template<>
+const char* EnumUtil::ToChars<TableFunctionIdentifierConversion>(TableFunctionIdentifierConversion value);
+
+template<>
 const char* EnumUtil::ToChars<TableFunctionParallelism>(TableFunctionParallelism value);
 
 template<>
@@ -1541,6 +1561,9 @@ template<>
 DebugInitialize EnumUtil::FromString<DebugInitialize>(const char *value);
 
 template<>
+DebugOrderVerification EnumUtil::FromString<DebugOrderVerification>(const char *value);
+
+template<>
 DebugStatementVerification EnumUtil::FromString<DebugStatementVerification>(const char *value);
 
 template<>
@@ -1566,6 +1589,9 @@ DeprecatedUsingKeySyntax EnumUtil::FromString<DeprecatedUsingKeySyntax>(const ch
 
 template<>
 DestroyBufferUpon EnumUtil::FromString<DestroyBufferUpon>(const char *value);
+
+template<>
+DialectCompatibilityMode EnumUtil::FromString<DialectCompatibilityMode>(const char *value);
 
 template<>
 DistinctCountSource EnumUtil::FromString<DistinctCountSource>(const char *value);
@@ -1665,6 +1691,9 @@ GeometryStorageType EnumUtil::FromString<GeometryStorageType>(const char *value)
 
 template<>
 GeometryType EnumUtil::FromString<GeometryType>(const char *value);
+
+template<>
+GroupByExpressionInfoType EnumUtil::FromString<GroupByExpressionInfoType>(const char *value);
 
 template<>
 HLLStorageType EnumUtil::FromString<HLLStorageType>(const char *value);
@@ -2019,6 +2048,9 @@ TableColumnType EnumUtil::FromString<TableColumnType>(const char *value);
 
 template<>
 TableFilterType EnumUtil::FromString<TableFilterType>(const char *value);
+
+template<>
+TableFunctionIdentifierConversion EnumUtil::FromString<TableFunctionIdentifierConversion>(const char *value);
 
 template<>
 TableFunctionParallelism EnumUtil::FromString<TableFunctionParallelism>(const char *value);

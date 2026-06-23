@@ -59,11 +59,7 @@ static unique_ptr<QueryNode> BuildDescribeQuerySelect(unique_ptr<SelectStatement
 
 // DescribeStatement <- ShowTables / ShowAllTables / DescribeQuery / DescribeTable / ShowSelect / ShowQualifiedName
 // Hand-written: the DescribeTable/DescribeQuery alternatives make the generator skip this rule.
-unique_ptr<SelectStatement> PEGTransformerFactory::TransformDescribeStatement(PEGTransformer &transformer,
-                                                                              ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
-	auto child = transformer.Transform<unique_ptr<QueryNode>>(choice_pr.GetResult());
+unique_ptr<SelectStatement> PEGTransformerFactory::TransformDescribeStatement(PEGTransformer &transformer, unique_ptr<QueryNode> child) {
 	auto select_statement = make_uniq<SelectStatement>();
 	select_statement->node = std::move(child);
 	return select_statement;
@@ -120,17 +116,21 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformShowAllTables(PEGTransform
 
 unique_ptr<QueryNode> PEGTransformerFactory::TransformShowQualifiedName(PEGTransformer &transformer,
                                                                         const ShowType &show_or_describe_or_summarize,
-                                                                        DescribeTarget describe_target) {
+                                                                        optional<DescribeTarget> describe_target) {
 	auto showref = make_uniq<ShowRef>();
 	showref->show_type = show_or_describe_or_summarize;
+	DescribeTarget target;
+	if (describe_target) {
+		target = std::move(*describe_target);
+	}
 
-	if (describe_target.is_table_name || describe_target.table_ref) {
-		if (describe_target.is_table_name) {
+	if (target.is_table_name || target.table_ref) {
+		if (target.is_table_name) {
 			// Case: SHOW 'something' or DESCRIBE 'something'
-			showref->table_name = describe_target.table_name;
+			showref->table_name = target.table_name;
 		} else {
 			// Case: A relation/table reference
-			auto &base_table = *describe_target.table_ref;
+			auto &base_table = *target.table_ref;
 
 			if (showref->show_type == ShowType::SHOW_FROM) {
 				// Logic for SHOW TABLES FROM [database].[schema]
@@ -153,14 +153,14 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformShowQualifiedName(PEGTrans
 		if (showref->table_name.empty() && showref->show_type != ShowType::SHOW_FROM) {
 			auto show_select_node = make_uniq<SelectNode>();
 			show_select_node->select_list.push_back(make_uniq<StarExpression>());
-			if (describe_target.is_table_name) {
+			if (target.is_table_name) {
 				// Case: SHOW 'something' or DESCRIBE 'something'
 				auto table_ref = make_uniq<BaseTableRef>();
-				table_ref->table_name = describe_target.table_name;
+				table_ref->table_name = target.table_name;
 				show_select_node->from_table = std::move(table_ref);
 			} else {
 				// Case: A relation/table reference
-				show_select_node->from_table = std::move(describe_target.table_ref);
+				show_select_node->from_table = std::move(target.table_ref);
 			}
 			showref->query = std::move(show_select_node);
 		}
@@ -213,24 +213,17 @@ ShowType PEGTransformerFactory::TransformDescRule(PEGTransformer &transformer) {
 
 // DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget
 // Hand-written (the inlined keyword-choice modifier makes the generator skip this rule).
-unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeTable(PEGTransformer &transformer,
-                                                                    ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
+unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule, const bool &has_result, const bool &has_result_1, DescribeTarget describe_target) {
 	// child 0: DescribeRule, child 1: optional 'TABLE', child 2: optional EXTENDED/FORMATTED, child 3: DescribeTarget
-	bool extended = list_pr.Child<OptionalParseResult>(2).HasResult();
-	auto describe_target = transformer.Transform<DescribeTarget>(list_pr.GetChild(3));
+	bool extended = has_result_1;
 	string function_name = extended ? "spark_describe_extended" : "spark_describe";
 	return BuildDescribeSelect(describe_target, function_name);
 }
 
 // DescribeQuery <- DescribeRule 'QUERY' SelectStatementInternal
 // Hand-written (referenced by DescribeStatement, which the generator skips).
-unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeQuery(PEGTransformer &transformer,
-                                                                    ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	// child 0: DescribeRule, child 1: 'QUERY', child 2: SelectStatementInternal
-	auto select_statement = transformer.Transform<unique_ptr<SelectStatement>>(list_pr.GetChild(2));
-	return BuildDescribeQuerySelect(std::move(select_statement));
+unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeQuery(PEGTransformer &transformer, const ShowType &describe_rule, unique_ptr<SelectStatement> select_statement_internal) {
+	return BuildDescribeQuerySelect(std::move(select_statement_internal));
 }
 
 } // namespace duckdb_fork
