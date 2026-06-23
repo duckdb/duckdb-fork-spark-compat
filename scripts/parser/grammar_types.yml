@@ -118,6 +118,7 @@ SelectStatement:
     - ValuesClause
     - ValuesClauseWithAlias
     - ValuesClauseNoParens
+    - ValuesBody
     - TableStatement
 
 SetStatement:

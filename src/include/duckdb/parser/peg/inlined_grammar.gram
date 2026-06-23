@@ -1472,7 +1472,7 @@ TableRef <- InnerTableRef JoinOrPivot*
 TableSubquery <- Lateral? SubqueryReference TableAlias?
 BaseTableRef <- TableAliasColon? BaseTableName TableAlias? AtClause? SampleClause?
 TableAliasColon <- ColIdOrString ':'
-ValuesRef <- (ValuesClause / ValuesClauseNoParens) TableAlias?
+ValuesRef <- ValuesBody TableAlias?
 ParensTableRef <- TableAliasColon? Parens(TableRef) TableAlias? SampleClause?
 
 JoinOrPivot <- JoinClause / TablePivotClause / TableUnpivotClause
@@ -1614,7 +1614,8 @@ ExpressionOptIdentifier <- Expression Identifier?
 
 ValuesClause <- 'VALUES' List(ValuesExpressions)
 ValuesClauseNoParens <- 'VALUES' List(Expression)
-ValuesClauseWithAlias <- (ValuesClause / ValuesClauseNoParens) TableAlias
+ValuesBody <- ValuesClause / ValuesClauseNoParens
+ValuesClauseWithAlias <- ValuesBody TableAlias
 ValuesExpressions <- Parens(List(RowExpressionArg))
 
 TransactionStatement <- BeginTransaction / RollbackTransaction / CommitTransaction

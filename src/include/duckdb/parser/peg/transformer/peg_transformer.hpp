@@ -3266,8 +3266,7 @@ public:
 	static Identifier TransformTableAliasColon(PEGTransformer &transformer, const Identifier &col_id_or_string);
 	static unique_ptr<TransformResultValue> TransformValuesRefInternal(PEGTransformer &transformer,
 	                                                                   ParseResult &parse_result);
-	static unique_ptr<TableRef> TransformValuesRef(PEGTransformer &transformer,
-	                                               unique_ptr<SelectStatement> values_clause,
+	static unique_ptr<TableRef> TransformValuesRef(PEGTransformer &transformer, unique_ptr<SelectStatement> values_body,
 	                                               const optional<TableAlias> &table_alias);
 	static unique_ptr<TransformResultValue> TransformParensTableRefInternal(PEGTransformer &transformer,
 	                                                                        ParseResult &parse_result);
@@ -3665,10 +3664,12 @@ public:
 	                                                                              ParseResult &parse_result);
 	static unique_ptr<SelectStatement> TransformValuesClauseNoParens(PEGTransformer &transformer,
 	                                                                 vector<unique_ptr<ParsedExpression>> expression);
+	static unique_ptr<TransformResultValue> TransformValuesBodyInternal(PEGTransformer &transformer,
+	                                                                    ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformValuesClauseWithAliasInternal(PEGTransformer &transformer,
 	                                                                               ParseResult &parse_result);
 	static unique_ptr<SelectStatement> TransformValuesClauseWithAlias(PEGTransformer &transformer,
-	                                                                  unique_ptr<SelectStatement> values_clause,
+	                                                                  unique_ptr<SelectStatement> values_body,
 	                                                                  const TableAlias &table_alias);
 	static unique_ptr<TransformResultValue> TransformValuesExpressionsInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
