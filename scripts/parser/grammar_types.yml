@@ -1334,6 +1334,8 @@ JoinTypeValue:
   by_value: false
   rules:
     - FullJoin
+    - LeftSemiJoin
+    - LeftAntiJoin
     - LeftJoin
     - RightJoin
     - SemiJoin

@@ -8981,6 +8981,14 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformUsingClauseInte
 	return make_uniq<TypedTransformResult<JoinQualifier>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformJoinTypeInternal(PEGTransformer &transformer,
+                                                                                  ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto result = transformer.Transform<JoinType>(choice_pr.GetResult());
+	return make_uniq<TypedTransformResult<JoinType>>(result);
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformJoinPrefixInternal(PEGTransformer &transformer,
                                                                                     ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -9021,6 +9029,18 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformFullJoinInterna
 	auto &has_result_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
 	has_result = has_result_opt.HasResult();
 	auto result = TransformFullJoin(transformer, has_result);
+	return make_uniq<TypedTransformResult<JoinType>>(result);
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformLeftSemiJoinInternal(PEGTransformer &transformer,
+                                                                                      ParseResult &parse_result) {
+	auto result = TransformLeftSemiJoin(transformer);
+	return make_uniq<TypedTransformResult<JoinType>>(result);
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformLeftAntiJoinInternal(PEGTransformer &transformer,
+                                                                                      ParseResult &parse_result) {
+	auto result = TransformLeftAntiJoin(transformer);
 	return make_uniq<TypedTransformResult<JoinType>>(result);
 }
 
@@ -11051,11 +11071,14 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"JoinQualifier", &PEGTransformerFactory::TransformJoinQualifierInternal},
 	    {"OnClause", &PEGTransformerFactory::TransformOnClauseInternal},
 	    {"UsingClause", &PEGTransformerFactory::TransformUsingClauseInternal},
+	    {"JoinType", &PEGTransformerFactory::TransformJoinTypeInternal},
 	    {"JoinPrefix", &PEGTransformerFactory::TransformJoinPrefixInternal},
 	    {"CrossJoinPrefix", &PEGTransformerFactory::TransformCrossJoinPrefixInternal},
 	    {"NaturalJoinPrefix", &PEGTransformerFactory::TransformNaturalJoinPrefixInternal},
 	    {"PositionalJoinPrefix", &PEGTransformerFactory::TransformPositionalJoinPrefixInternal},
 	    {"FullJoin", &PEGTransformerFactory::TransformFullJoinInternal},
+	    {"LeftSemiJoin", &PEGTransformerFactory::TransformLeftSemiJoinInternal},
+	    {"LeftAntiJoin", &PEGTransformerFactory::TransformLeftAntiJoinInternal},
 	    {"LeftJoin", &PEGTransformerFactory::TransformLeftJoinInternal},
 	    {"RightJoin", &PEGTransformerFactory::TransformRightJoinInternal},
 	    {"SemiJoin", &PEGTransformerFactory::TransformSemiJoinInternal},

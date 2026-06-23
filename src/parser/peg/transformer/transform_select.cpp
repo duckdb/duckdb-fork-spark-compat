@@ -595,6 +595,16 @@ JoinType PEGTransformerFactory::TransformInnerJoin(PEGTransformer &transformer) 
 	return JoinType::INNER;
 }
 
+// LeftSemiJoin <- 'LEFT' 'SEMI'
+JoinType PEGTransformerFactory::TransformLeftSemiJoin(PEGTransformer &transformer) {
+	return JoinType::SEMI;
+}
+
+// LeftAntiJoin <- 'LEFT' 'ANTI'
+JoinType PEGTransformerFactory::TransformLeftAntiJoin(PEGTransformer &transformer) {
+	return JoinType::ANTI;
+}
+
 unique_ptr<TableRef> PEGTransformerFactory::TransformTableFunctionLateralOpt(
     PEGTransformer &transformer, const optional<bool> &lateral, const QualifiedName &qualified_table_function,
     vector<FunctionArgument> table_function_arguments, const optional<bool> &with_ordinality,

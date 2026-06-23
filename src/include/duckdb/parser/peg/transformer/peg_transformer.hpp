@@ -3450,6 +3450,8 @@ public:
 	static unique_ptr<TransformResultValue> TransformUsingClauseInternal(PEGTransformer &transformer,
 	                                                                     ParseResult &parse_result);
 	static JoinQualifier TransformUsingClause(PEGTransformer &transformer, const vector<Identifier> &column_name);
+	static unique_ptr<TransformResultValue> TransformJoinTypeInternal(PEGTransformer &transformer,
+	                                                                  ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformJoinPrefixInternal(PEGTransformer &transformer,
 	                                                                    ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformCrossJoinPrefixInternal(PEGTransformer &transformer,
@@ -3464,6 +3466,12 @@ public:
 	static unique_ptr<TransformResultValue> TransformFullJoinInternal(PEGTransformer &transformer,
 	                                                                  ParseResult &parse_result);
 	static JoinType TransformFullJoin(PEGTransformer &transformer, const bool &has_result);
+	static unique_ptr<TransformResultValue> TransformLeftSemiJoinInternal(PEGTransformer &transformer,
+	                                                                      ParseResult &parse_result);
+	static JoinType TransformLeftSemiJoin(PEGTransformer &transformer);
+	static unique_ptr<TransformResultValue> TransformLeftAntiJoinInternal(PEGTransformer &transformer,
+	                                                                      ParseResult &parse_result);
+	static JoinType TransformLeftAntiJoin(PEGTransformer &transformer);
 	static unique_ptr<TransformResultValue> TransformLeftJoinInternal(PEGTransformer &transformer,
 	                                                                  ParseResult &parse_result);
 	static JoinType TransformLeftJoin(PEGTransformer &transformer, const bool &has_result);
