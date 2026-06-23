@@ -1,7 +1,9 @@
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
+#include "duckdb/parser/peg/transformer/parse_result.hpp"
 #include "duckdb/parser/parsed_data/create_view_info.hpp"
 #include "duckdb/parser/query_node/recursive_cte_node.hpp"
 #include "duckdb/parser/query_node/set_operation_node.hpp"
+#include "duckdb/common/string_util.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
@@ -90,7 +92,8 @@ void PEGTransformerFactory::ConvertToRecursiveView(unique_ptr<CreateViewInfo> &i
 unique_ptr<CreateStatement>
 PEGTransformerFactory::TransformCreateViewStmt(PEGTransformer &transformer, const optional<bool> &create_recursive,
                                                const optional<bool> &if_not_exists, const QualifiedName &qualified_name,
-                                               const optional<vector<string>> &view_column_list, const bool &has_result,
+                                               const optional<vector<string>> &view_column_list,
+                                               const optional<string> &schema_mode,
                                                const optional<vector<string>> &insert_column_list,
                                                optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list,
                                                unique_ptr<SelectStatement> select_statement_internal) {
@@ -129,6 +132,15 @@ PEGTransformerFactory::TransformCreateViewStmt(PEGTransformer &transformer, cons
 		ConvertToRecursiveView(info, select_statement_internal->node);
 	} else {
 		info->query = std::move(select_statement_internal);
+		// Spark column-count pinning. An explicit column list already pins the view (its columns live in
+		// `aliases`). For a no-list view in a pinning mode (BINDING / COMPENSATION / TYPE EVOLUTION) leave a
+		// marker so the binder can fill `aliases` with the `*` expansion at create-bind time — the parser
+		// can't expand `*`. SCHEMA EVOLUTION (and a plain view) keep an empty list, so they grow. The marker
+		// is recognized in duckdb/src/planner/binder/statement/bind_create.cpp.
+		if (info->aliases.empty() && schema_mode && !schema_mode->empty() &&
+		    !StringUtil::CIEquals(*schema_mode, "EVOLUTION")) {
+			info->aliases.push_back(Identifier("__spark_pin_view"));
+		}
 	}
 	transformer.PivotEntryCheck("view");
 	result->info = std::move(info);
@@ -144,6 +156,39 @@ string PEGTransformerFactory::TransformViewColumn(PEGTransformer &transformer, c
                                                   const optional<string> &string_literal) {
 	// the column COMMENT is parsed for spark compatibility but ignored
 	return col_id.GetIdentifierName();
+}
+
+static void CollectModeKeywords(ParseResult &parse_result, vector<string> &keywords) {
+	switch (parse_result.type) {
+	case ParseResultType::KEYWORD:
+		keywords.push_back(parse_result.Cast<KeywordParseResult>().keyword);
+		break;
+	case ParseResultType::CHOICE:
+		CollectModeKeywords(parse_result.Cast<ChoiceParseResult>().GetResult(), keywords);
+		break;
+	case ParseResultType::LIST:
+		for (auto child : parse_result.Cast<ListParseResult>().GetChildren()) {
+			CollectModeKeywords(child.get(), keywords);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+// SchemaModeName <- 'BINDING' / 'COMPENSATION' / 'EVOLUTION' / ('TYPE' 'EVOLUTION')
+// The matched alternative may be wrapped in a CHOICE/LIST node, so collect the keyword(s) structure-agnostically
+// (the 'TYPE' 'EVOLUTION' alternative yields two keywords).
+string PEGTransformerFactory::TransformSchemaModeName(PEGTransformer &transformer, ParseResult &parse_result) {
+	vector<string> keywords;
+	CollectModeKeywords(parse_result, keywords);
+	return StringUtil::Join(keywords, " ");
+}
+
+// WithSchemaMode <- 'WITH' 'SCHEMA' SchemaModeName
+string PEGTransformerFactory::TransformWithSchemaMode(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	return transformer.Transform<string>(list_pr.GetChild(2));
 }
 
 } // namespace duckdb_fork

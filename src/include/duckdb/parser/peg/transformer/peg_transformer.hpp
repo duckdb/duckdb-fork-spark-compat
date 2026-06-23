@@ -394,6 +394,10 @@ public:
 	static DistinctClause TransformDistinctAll(PEGTransformer &transformer, ParseResult &parse_result);
 	static string TransformIdentifierOrKeyword(PEGTransformer &transformer, ParseResult &parse_result);
 
+	// create_view.gram (spark): WITH SCHEMA <mode> — choice with an inline ('TYPE' 'EVOLUTION') group
+	static string TransformWithSchemaMode(PEGTransformer &transformer, ParseResult &parse_result);
+	static string TransformSchemaModeName(PEGTransformer &transformer, ParseResult &parse_result);
+
 	// set.gram
 	static SettingInfo TransformSetSetting(PEGTransformer &transformer, ParseResult &parse_result);
 
@@ -1632,7 +1636,7 @@ public:
 	static unique_ptr<CreateStatement>
 	TransformCreateViewStmt(PEGTransformer &transformer, const optional<bool> &create_recursive,
 	                        const optional<bool> &if_not_exists, const QualifiedName &qualified_name,
-	                        const optional<vector<string>> &view_column_list, const bool &has_result,
+	                        const optional<vector<string>> &view_column_list, const optional<string> &with_schema_mode,
 	                        const optional<vector<string>> &insert_column_list,
 	                        optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list,
 	                        unique_ptr<SelectStatement> select_statement_internal);

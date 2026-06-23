@@ -1614,6 +1614,8 @@ overrides:
   ColumnComment: "string"
   ViewColumn: "string"
   ViewColumnList: "vector<string>"
+  WithSchemaMode: "string"
+  SchemaModeName: "string"
   ColIdColonType: "pair<string, LogicalType>"
 # ---------------------------------------------------------------------------
 # matcher.cpp rule overrides

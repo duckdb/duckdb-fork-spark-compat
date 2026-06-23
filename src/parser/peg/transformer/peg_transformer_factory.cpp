@@ -129,6 +129,9 @@ void PEGTransformerFactory::RegisterCommon() {
 	REGISTER_TRANSFORM(TransformNumberLiteral);
 	REGISTER_TRANSFORM(TransformStringLiteral);
 	REGISTER_TRANSFORM(TransformIntervalToIntervalAsType);
+	// create_view.gram (spark)
+	REGISTER_TRANSFORM(TransformWithSchemaMode);
+	REGISTER_TRANSFORM(TransformSchemaModeName);
 	// set.gram
 	REGISTER_TRANSFORM(TransformSetSetting);
 }

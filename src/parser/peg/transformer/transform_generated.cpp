@@ -3563,9 +3563,12 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateViewStmtI
 		auto view_column_list_value = transformer.Transform<vector<string>>(view_column_list_opt.GetResult());
 		view_column_list = view_column_list_value;
 	}
-	bool has_result {};
-	auto &has_result_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
-	has_result = has_result_opt.HasResult();
+	optional<string> with_schema_mode {};
+	auto &with_schema_mode_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	if (with_schema_mode_opt.HasResult()) {
+		auto with_schema_mode_value = transformer.Transform<string>(with_schema_mode_opt.GetResult());
+		with_schema_mode = with_schema_mode_value;
+	}
 	optional<vector<string>> insert_column_list {};
 	auto &insert_column_list_opt = list_pr.GetChild(6).Cast<OptionalParseResult>();
 	if (insert_column_list_opt.HasResult()) {
@@ -3581,7 +3584,7 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateViewStmtI
 	}
 	auto select_statement_internal = transformer.Transform<unique_ptr<SelectStatement>>(list_pr.GetChild(9));
 	auto result = TransformCreateViewStmt(transformer, create_recursive, if_not_exists, qualified_name,
-	                                      view_column_list, has_result, insert_column_list, std::move(with_list),
+	                                      view_column_list, with_schema_mode, insert_column_list, std::move(with_list),
 	                                      std::move(select_statement_internal));
 	return make_uniq<TypedTransformResult<unique_ptr<CreateStatement>>>(std::move(result));
 }
