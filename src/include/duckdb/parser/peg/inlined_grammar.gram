@@ -1439,7 +1439,7 @@ SetopUnion <- 'UNION'
 SetopExcept <- 'EXCEPT' / 'MINUS'
 ByName <- 'BY' 'NAME'
 
-SelectStatementType <- OptionalParensSimpleSelect / ValuesClauseWithAlias / ValuesClause / DescribeStatement / TableStatement / PivotStatement / UnpivotStatement
+SelectStatementType <- OptionalParensSimpleSelect / ValuesClauseWithAlias / ValuesBody / DescribeStatement / TableStatement / PivotStatement / UnpivotStatement
 ResultModifiers <- OrderByClause? LimitOffset?
 LimitOffset <- LimitOffsetClause / OffsetLimitClause
 LimitOffsetClause <- LimitClause OffsetClause?

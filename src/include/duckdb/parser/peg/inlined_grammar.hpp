@@ -1350,7 +1350,7 @@ const char INLINED_PEG_GRAMMAR[] = {
 	"SetopUnion <- 'UNION'\n"
 	"SetopExcept <- 'EXCEPT' / 'MINUS'\n"
 	"ByName <- 'BY' 'NAME'\n"
-	"SelectStatementType <- OptionalParensSimpleSelect / ValuesClauseWithAlias / ValuesClause / DescribeStatement / TableStatement / PivotStatement / UnpivotStatement\n"
+	"SelectStatementType <- OptionalParensSimpleSelect / ValuesClauseWithAlias / ValuesBody / DescribeStatement / TableStatement / PivotStatement / UnpivotStatement\n"
 	"ResultModifiers <- OrderByClause? LimitOffset?\n"
 	"LimitOffset <- LimitOffsetClause / OffsetLimitClause\n"
 	"LimitOffsetClause <- LimitClause OffsetClause?\n"
