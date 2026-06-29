@@ -463,6 +463,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	colname_keyword_map.insert("setof");
 	colname_keyword_map.insert("smallint");
 	colname_keyword_map.insert("struct");
+	colname_keyword_map.insert("substr");
 	colname_keyword_map.insert("substring");
 	colname_keyword_map.insert("time");
 	colname_keyword_map.insert("timestamp");

@@ -649,6 +649,7 @@ ColumnNameKeyword <- 'BETWEEN' /
 'ROW' /
 'SETOF' /
 'SMALLINT' /
+'SUBSTR' /
 'SUBSTRING' /
 'STRUCT' /
 'TIME' /
@@ -1080,7 +1081,7 @@ PositionSeparator <- 'IN' / ','
 RowExpression <- RowOrStruct Parens(List(RowExpressionArg)?)
 RowExpressionArg <- Expression RowExpressionAlias?
 RowExpressionAlias <- 'AS' ColId
-SubstringExpression <- 'SUBSTRING' Parens(SubstringArguments)
+SubstringExpression <- ('SUBSTRING' / 'SUBSTR') Parens(SubstringArguments)
 SubstringArguments <- SubstringParameters / SubstringExpressionList
 SubstringExpressionList <- List(Expression)
 SubstringParameters <- Expression SubstringFromFor
