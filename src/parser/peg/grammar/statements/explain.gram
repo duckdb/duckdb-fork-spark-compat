@@ -1,5 +1,6 @@
-ExplainStatement <- 'EXPLAIN' ExplainAnalyze? ExplainOptionList? ExplainableStatements
+ExplainStatement <- 'EXPLAIN' ExplainAnalyze? ExplainOptionList? ExplainMode? ExplainableStatements
 ExplainAnalyze <- 'ANALYZE'
+ExplainMode <- 'EXTENDED' / 'CODEGEN' / 'COST' / 'FORMATTED'
 ExplainOptionList <- Parens(List(ExplainOption))
 ExplainOption <- ExplainOptionName Expression?
 ExplainOptionName <- 'ANALYZE' / 'ANALYSE' / ColId / FuncNameKeyword / TypeNameKeyword

@@ -17,7 +17,9 @@ ProfilerPrintFormat ParseProfilerPrintFormat(const Value &val) {
 unique_ptr<SQLStatement>
 PEGTransformerFactory::TransformExplainStatement(PEGTransformer &transformer, const optional<bool> &explain_analyze,
                                                  const optional<vector<GenericCopyOption>> &explain_option_list,
+                                                 const optional<bool> &explain_mode,
                                                  unique_ptr<SQLStatement> explainable_statements) {
+	// Spark's EXPLAIN mode (EXTENDED/CODEGEN/COST/FORMATTED) has no DuckDB equivalent; map all to standard EXPLAIN.
 	auto explain_type = explain_analyze ? ExplainType::EXPLAIN_ANALYZE : ExplainType::EXPLAIN_STANDARD;
 	bool format_is_set = false;
 	auto format = ProfilerPrintFormat::Default();
@@ -42,6 +44,10 @@ PEGTransformerFactory::TransformExplainStatement(PEGTransformer &transformer, co
 }
 
 bool PEGTransformerFactory::TransformExplainAnalyze(PEGTransformer &transformer) {
+	return true;
+}
+
+bool PEGTransformerFactory::TransformExplainMode(PEGTransformer &transformer) {
 	return true;
 }
 

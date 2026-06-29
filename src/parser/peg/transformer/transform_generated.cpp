@@ -4285,15 +4285,27 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformExplainStatemen
 		    transformer.Transform<vector<GenericCopyOption>>(explain_option_list_opt.GetResult());
 		explain_option_list = explain_option_list_value;
 	}
-	auto explainable_statements = transformer.Transform<unique_ptr<SQLStatement>>(list_pr.GetChild(3));
-	auto result =
-	    TransformExplainStatement(transformer, explain_analyze, explain_option_list, std::move(explainable_statements));
+	optional<bool> explain_mode {};
+	auto &explain_mode_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
+	if (explain_mode_opt.HasResult()) {
+		auto explain_mode_value = transformer.Transform<bool>(explain_mode_opt.GetResult());
+		explain_mode = explain_mode_value;
+	}
+	auto explainable_statements = transformer.Transform<unique_ptr<SQLStatement>>(list_pr.GetChild(4));
+	auto result = TransformExplainStatement(transformer, explain_analyze, explain_option_list, explain_mode,
+	                                        std::move(explainable_statements));
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformExplainAnalyzeInternal(PEGTransformer &transformer,
                                                                                         ParseResult &parse_result) {
 	auto result = TransformExplainAnalyze(transformer);
+	return make_uniq<TypedTransformResult<bool>>(result);
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformExplainModeInternal(PEGTransformer &transformer,
+                                                                                     ParseResult &parse_result) {
+	auto result = TransformExplainMode(transformer);
 	return make_uniq<TypedTransformResult<bool>>(result);
 }
 
@@ -10653,6 +10665,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ExecuteStatement", &PEGTransformerFactory::TransformExecuteStatementInternal},
 	    {"ExplainStatement", &PEGTransformerFactory::TransformExplainStatementInternal},
 	    {"ExplainAnalyze", &PEGTransformerFactory::TransformExplainAnalyzeInternal},
+	    {"ExplainMode", &PEGTransformerFactory::TransformExplainModeInternal},
 	    {"ExplainOptionList", &PEGTransformerFactory::TransformExplainOptionListInternal},
 	    {"ExplainOption", &PEGTransformerFactory::TransformExplainOptionInternal},
 	    {"ExplainSelectStatement", &PEGTransformerFactory::TransformExplainSelectStatementInternal},

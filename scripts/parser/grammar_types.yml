@@ -1142,6 +1142,7 @@ Bool:
     - DeallocatePrepare
     - CreateRecursive
     - ExplainAnalyze
+    - ExplainMode
     - WithOrWithoutOids
     - WithOids
     - WithoutOids

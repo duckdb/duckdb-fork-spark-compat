@@ -1861,10 +1861,13 @@ public:
 	static unique_ptr<SQLStatement>
 	TransformExplainStatement(PEGTransformer &transformer, const optional<bool> &explain_analyze,
 	                          const optional<vector<GenericCopyOption>> &explain_option_list,
-	                          unique_ptr<SQLStatement> explainable_statements);
+	                          const optional<bool> &explain_mode, unique_ptr<SQLStatement> explainable_statements);
 	static unique_ptr<TransformResultValue> TransformExplainAnalyzeInternal(PEGTransformer &transformer,
 	                                                                        ParseResult &parse_result);
 	static bool TransformExplainAnalyze(PEGTransformer &transformer);
+	static unique_ptr<TransformResultValue> TransformExplainModeInternal(PEGTransformer &transformer,
+	                                                                     ParseResult &parse_result);
+	static bool TransformExplainMode(PEGTransformer &transformer);
 	static unique_ptr<TransformResultValue> TransformExplainOptionListInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static vector<GenericCopyOption> TransformExplainOptionList(PEGTransformer &transformer,
