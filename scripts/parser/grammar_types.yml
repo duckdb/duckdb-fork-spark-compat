@@ -613,7 +613,6 @@ ExpressionList:
     - OverlayArguments
     - OverlayParameters
     - OverlayExpressionList
-    - PartitionOptions
     - SortedOptions
     - PivotUsing
     - WindowClause
@@ -945,6 +944,18 @@ PartitionSortedOptions:
     - PartitionSortedOptions
     - PartitionOptSortedOptions
     - SortedOptPartitionOptions
+
+PartitionFieldList:
+  type: "vector<PartitionFieldEntry>"
+  by_value: true
+  rules:
+    - PartitionOptions
+
+PartitionFieldEntry:
+  type: "PartitionFieldEntry"
+  by_value: true
+  rules:
+    - PartitionField
 
 ColumnElements:
   type: "ColumnElements"

@@ -1214,7 +1214,8 @@ CreateTableAs <- SparkUsing? IdentifierList? PartitionSortedOptions? WithList? '
 PartitionSortedOptions <- PartitionOptSortedOptions / SortedOptPartitionOptions
 PartitionOptSortedOptions <- PartitionOptions SortedOptions?
 SortedOptPartitionOptions <- SortedOptions PartitionOptions?
-PartitionOptions <- 'PARTITIONED' 'BY' Parens(List(Expression))
+PartitionOptions <- 'PARTITIONED' 'BY' Parens(List(PartitionField))
+PartitionField <- Expression Type?
 SortedOptions <- 'SORTED' 'BY' Parens(List(Expression))
 
 WithData <- WithDataOnly / WithNoData

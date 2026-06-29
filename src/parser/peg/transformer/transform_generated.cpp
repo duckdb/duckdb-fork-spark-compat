@@ -2620,7 +2620,7 @@ unique_ptr<TransformResultValue>
 PEGTransformerFactory::TransformPartitionOptSortedOptionsInternal(PEGTransformer &transformer,
                                                                   ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto partition_options = transformer.Transform<vector<unique_ptr<ParsedExpression>>>(list_pr.GetChild(0));
+	auto partition_options = transformer.Transform<vector<PartitionFieldEntry>>(list_pr.GetChild(0));
 	optional<vector<unique_ptr<ParsedExpression>>> sorted_options {};
 	auto &sorted_options_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
 	if (sorted_options_opt.HasResult()) {
@@ -2638,11 +2638,11 @@ PEGTransformerFactory::TransformSortedOptPartitionOptionsInternal(PEGTransformer
                                                                   ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
 	auto sorted_options = transformer.Transform<vector<unique_ptr<ParsedExpression>>>(list_pr.GetChild(0));
-	optional<vector<unique_ptr<ParsedExpression>>> partition_options {};
+	optional<vector<PartitionFieldEntry>> partition_options {};
 	auto &partition_options_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
 	if (partition_options_opt.HasResult()) {
 		auto partition_options_value =
-		    transformer.Transform<vector<unique_ptr<ParsedExpression>>>(partition_options_opt.GetResult());
+		    transformer.Transform<vector<PartitionFieldEntry>>(partition_options_opt.GetResult());
 		partition_options = std::move(partition_options_value);
 	}
 	auto result =
@@ -2653,14 +2653,28 @@ PEGTransformerFactory::TransformSortedOptPartitionOptionsInternal(PEGTransformer
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPartitionOptionsInternal(PEGTransformer &transformer,
                                                                                           ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
-	vector<unique_ptr<ParsedExpression>> expression;
-	auto expression_items = ExtractParseResultsFromList(ExtractResultFromParens(list_pr.GetChild(2)));
-	for (auto &expression_item : expression_items) {
-		auto expression_value = transformer.Transform<unique_ptr<ParsedExpression>>(expression_item.get());
-		expression.push_back(std::move(expression_value));
+	vector<PartitionFieldEntry> partition_field;
+	auto partition_field_items = ExtractParseResultsFromList(ExtractResultFromParens(list_pr.GetChild(2)));
+	for (auto &partition_field_item : partition_field_items) {
+		auto partition_field_value = transformer.Transform<PartitionFieldEntry>(partition_field_item.get());
+		partition_field.push_back(std::move(partition_field_value));
 	}
-	auto result = TransformPartitionOptions(transformer, std::move(expression));
-	return make_uniq<TypedTransformResult<vector<unique_ptr<ParsedExpression>>>>(std::move(result));
+	auto result = TransformPartitionOptions(transformer, std::move(partition_field));
+	return make_uniq<TypedTransformResult<vector<PartitionFieldEntry>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPartitionFieldInternal(PEGTransformer &transformer,
+                                                                                        ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto expression = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(0));
+	optional<LogicalType> type {};
+	auto &type_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (type_opt.HasResult()) {
+		auto type_value = transformer.Transform<LogicalType>(type_opt.GetResult());
+		type = type_value;
+	}
+	auto result = TransformPartitionField(transformer, std::move(expression), type);
+	return make_uniq<TypedTransformResult<PartitionFieldEntry>>(std::move(result));
 }
 
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSortedOptionsInternal(PEGTransformer &transformer,
@@ -10488,6 +10502,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"PartitionOptSortedOptions", &PEGTransformerFactory::TransformPartitionOptSortedOptionsInternal},
 	    {"SortedOptPartitionOptions", &PEGTransformerFactory::TransformSortedOptPartitionOptionsInternal},
 	    {"PartitionOptions", &PEGTransformerFactory::TransformPartitionOptionsInternal},
+	    {"PartitionField", &PEGTransformerFactory::TransformPartitionFieldInternal},
 	    {"SortedOptions", &PEGTransformerFactory::TransformSortedOptionsInternal},
 	    {"WithData", &PEGTransformerFactory::TransformWithDataInternal},
 	    {"WithDataOnly", &PEGTransformerFactory::TransformWithDataOnlyInternal},

@@ -9,6 +9,7 @@
 #include "duckdb/parser/peg/ast/column_elements.hpp"
 #include "duckdb/parser/peg/ast/create_table_column_element.hpp"
 #include "duckdb/parser/peg/ast/create_table_definition.hpp"
+#include "duckdb/parser/peg/ast/partition_field_entry.hpp"
 #include "duckdb/parser/peg/ast/partition_sorted_options.hpp"
 #include "duckdb/parser/peg/ast/distinct_clause.hpp"
 #include "duckdb/parser/peg/ast/describe_target.hpp"
@@ -1322,18 +1323,22 @@ public:
 	static unique_ptr<TransformResultValue> TransformPartitionOptSortedOptionsInternal(PEGTransformer &transformer,
 	                                                                                   ParseResult &parse_result);
 	static PartitionSortedOptions
-	TransformPartitionOptSortedOptions(PEGTransformer &transformer,
-	                                   vector<unique_ptr<ParsedExpression>> partition_options,
+	TransformPartitionOptSortedOptions(PEGTransformer &transformer, vector<PartitionFieldEntry> partition_options,
 	                                   optional<vector<unique_ptr<ParsedExpression>>> sorted_options);
 	static unique_ptr<TransformResultValue> TransformSortedOptPartitionOptionsInternal(PEGTransformer &transformer,
 	                                                                                   ParseResult &parse_result);
 	static PartitionSortedOptions
 	TransformSortedOptPartitionOptions(PEGTransformer &transformer, vector<unique_ptr<ParsedExpression>> sorted_options,
-	                                   optional<vector<unique_ptr<ParsedExpression>>> partition_options);
+	                                   optional<vector<PartitionFieldEntry>> partition_options);
 	static unique_ptr<TransformResultValue> TransformPartitionOptionsInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
-	static vector<unique_ptr<ParsedExpression>>
-	TransformPartitionOptions(PEGTransformer &transformer, vector<unique_ptr<ParsedExpression>> expression);
+	static vector<PartitionFieldEntry> TransformPartitionOptions(PEGTransformer &transformer,
+	                                                             vector<PartitionFieldEntry> partition_field);
+	static unique_ptr<TransformResultValue> TransformPartitionFieldInternal(PEGTransformer &transformer,
+	                                                                        ParseResult &parse_result);
+	static PartitionFieldEntry TransformPartitionField(PEGTransformer &transformer,
+	                                                   unique_ptr<ParsedExpression> expression,
+	                                                   const optional<LogicalType> &type);
 	static unique_ptr<TransformResultValue> TransformSortedOptionsInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static vector<unique_ptr<ParsedExpression>> TransformSortedOptions(PEGTransformer &transformer,

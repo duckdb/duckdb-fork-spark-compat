@@ -5,6 +5,7 @@
 #include "duckdb/parser/peg/ast/create_table_definition.hpp"
 #include "duckdb/parser/peg/ast/generated_column_definition.hpp"
 #include "duckdb/parser/peg/ast/key_actions.hpp"
+#include "duckdb/parser/peg/ast/partition_field_entry.hpp"
 #include "duckdb/parser/peg/ast/partition_sorted_options.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
@@ -128,6 +129,10 @@ CreateTableDefinition PEGTransformerFactory::TransformCreateColumnList(
 	if (partition_sorted_options) {
 		result.partition_keys = std::move(partition_sorted_options->partition_keys);
 		result.sort_keys = std::move(partition_sorted_options->sort_keys);
+		// typed partition columns (PARTITIONED BY (name type)) are appended after the listed columns
+		for (auto &partition_column : partition_sorted_options->partition_columns.Logical()) {
+			result.columns.AddColumn(partition_column.Copy());
+		}
 	}
 	if (with_list) {
 		result.options = std::move(*with_list);
@@ -572,10 +577,44 @@ void PEGTransformerFactory::VerifyColumnRefs(const ParsedExpression &expr) {
 	});
 }
 
-vector<unique_ptr<ParsedExpression>>
+// Fold a PARTITIONED BY list into a PartitionSortedOptions: reference-form fields contribute an (ignored)
+// partition key, typed-form fields contribute a column that is later appended to the table schema.
+static void FoldPartitionFields(vector<PartitionFieldEntry> &fields, PartitionSortedOptions &result) {
+	for (auto &field : fields) {
+		if (field.column) {
+			result.partition_columns.AddColumn(std::move(*field.column));
+		} else {
+			result.partition_keys.push_back(std::move(field.key));
+		}
+	}
+}
+
+// PartitionField <- Expression Type?
+// With a trailing type it is a typed column definition (colType) declaring a new partition column; without
+// one it is a reference to an already-declared column.
+PartitionFieldEntry PEGTransformerFactory::TransformPartitionField(PEGTransformer &transformer,
+                                                                   unique_ptr<ParsedExpression> expression,
+                                                                   const optional<LogicalType> &type) {
+	PartitionFieldEntry entry;
+	if (type) {
+		if (expression->GetExpressionClass() != ExpressionClass::COLUMN_REF) {
+			throw ParserException("PARTITIONED BY column must be a simple column name");
+		}
+		auto &colref = expression->Cast<ColumnRefExpression>();
+		if (colref.IsQualified()) {
+			throw ParserException("PARTITIONED BY column must be an unqualified column name");
+		}
+		entry.column = make_uniq<ColumnDefinition>(colref.GetColumnName(), *type);
+	} else {
+		entry.key = std::move(expression);
+	}
+	return entry;
+}
+
+vector<PartitionFieldEntry>
 PEGTransformerFactory::TransformPartitionOptions(PEGTransformer &transformer,
-                                                 vector<unique_ptr<ParsedExpression>> expression) {
-	return expression;
+                                                 vector<PartitionFieldEntry> partition_field) {
+	return partition_field;
 }
 
 vector<unique_ptr<ParsedExpression>>
@@ -585,10 +624,10 @@ PEGTransformerFactory::TransformSortedOptions(PEGTransformer &transformer,
 }
 
 PartitionSortedOptions PEGTransformerFactory::TransformPartitionOptSortedOptions(
-    PEGTransformer &transformer, vector<unique_ptr<ParsedExpression>> partition_options,
+    PEGTransformer &transformer, vector<PartitionFieldEntry> partition_options,
     optional<vector<unique_ptr<ParsedExpression>>> sorted_options) {
 	PartitionSortedOptions result;
-	result.partition_keys = std::move(partition_options);
+	FoldPartitionFields(partition_options, result);
 	if (sorted_options) {
 		result.sort_keys = std::move(*sorted_options);
 	}
@@ -597,11 +636,11 @@ PartitionSortedOptions PEGTransformerFactory::TransformPartitionOptSortedOptions
 
 PartitionSortedOptions PEGTransformerFactory::TransformSortedOptPartitionOptions(
     PEGTransformer &transformer, vector<unique_ptr<ParsedExpression>> sorted_options,
-    optional<vector<unique_ptr<ParsedExpression>>> partition_options) {
+    optional<vector<PartitionFieldEntry>> partition_options) {
 	PartitionSortedOptions result;
 	result.sort_keys = std::move(sorted_options);
 	if (partition_options) {
-		result.partition_keys = std::move(*partition_options);
+		FoldPartitionFields(*partition_options, result);
 	}
 	return result;
 }
