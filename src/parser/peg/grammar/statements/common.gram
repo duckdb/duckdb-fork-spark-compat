@@ -190,6 +190,11 @@ WithoutRule <- 'WITHOUT'
 
 RowOrStruct <- 'ROW' / 'STRUCT'
 
+# Spark static/dynamic partition spec, shared by INSERT, ANALYZE and DESCRIBE: PARTITION (col [= value], ...)
+PartitionSpec <- 'PARTITION' Parens(List(PartitionSpecEntry))
+PartitionSpecEntry <- ColId PartitionSpecValue?
+PartitionSpecValue <- '=' Expression
+
 # internal definitions
 %whitespace <- [ \t\n\r]*
 List(D) <- D (',' D)* ','?

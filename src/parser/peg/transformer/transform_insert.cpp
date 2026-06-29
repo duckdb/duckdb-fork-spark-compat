@@ -1,17 +1,26 @@
 #include "duckdb/parser/peg/ast/insert_values.hpp"
 #include "duckdb/parser/peg/ast/on_conflict_expression_target.hpp"
+#include "duckdb/parser/peg/ast/partition_spec_entry.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/statement/insert_statement.hpp"
 #include "duckdb/parser/query_node/insert_query_node.hpp"
+#include "duckdb/parser/query_node/select_node.hpp"
+#include "duckdb/parser/statement/select_statement.hpp"
+#include "duckdb/parser/expression/star_expression.hpp"
+#include "duckdb/parser/tableref/subqueryref.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
 
+// InsertStatement <- WithClause? 'INSERT' OrAction? 'INTO' 'TABLE'? InsertTarget PartitionSpec? ByNameOrPosition?
+//                     InsertColumnList? InsertValues OnConflictClause? ReturningClause?
+// has_result is the optional Spark 'TABLE' keyword (INSERT INTO TABLE t), accepted and otherwise ignored.
 unique_ptr<SQLStatement> PEGTransformerFactory::TransformInsertStatement(
     PEGTransformer &transformer, optional<CommonTableExpressionMap> with_clause,
-    const optional<OnConflictAction> &or_action, unique_ptr<BaseTableRef> insert_target,
-    const optional<InsertColumnOrder> &by_name_or_position, const optional<vector<string>> &insert_column_list,
-    InsertValues insert_values, optional<unique_ptr<OnConflictInfo>> on_conflict_clause,
+    const optional<OnConflictAction> &or_action, const bool &has_result, unique_ptr<BaseTableRef> insert_target,
+    optional<vector<PartitionSpecEntry>> partition_spec, const optional<InsertColumnOrder> &by_name_or_position,
+    const optional<vector<string>> &insert_column_list, InsertValues insert_values,
+    optional<unique_ptr<OnConflictInfo>> on_conflict_clause,
     optional<vector<unique_ptr<ParsedExpression>>> returning_clause) {
 	auto result = make_uniq<InsertStatement>();
 	auto &node = *result->node;
@@ -34,6 +43,29 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformInsertStatement(
 	}
 	if (insert_values.select_statement) {
 		node.select_statement = std::move(insert_values.select_statement);
+	}
+	if (partition_spec) {
+		// Spark INSERT INTO t PARTITION (c1 = v1, ...) <source>: DuckDB has no partition concept, so fold the
+		// static partition values into the data as trailing constant columns. Spark stores partition columns
+		// last, so SELECT *, v1, ... over the source keeps the declared column order. Positional: this assumes
+		// the spec lists partition columns in the table's declared partition-column order.
+		if (!node.select_statement) {
+			throw ParserException("INSERT INTO ... PARTITION requires a VALUES list or query as the source");
+		}
+		auto partition_select = make_uniq<SelectNode>();
+		partition_select->select_list.push_back(make_uniq<StarExpression>());
+		for (auto &entry : *partition_spec) {
+			if (!entry.value) {
+				throw NotImplementedException(
+				    "INSERT INTO ... PARTITION with a dynamic partition column (no '= value') is not supported");
+			}
+			partition_select->select_list.push_back(std::move(entry.value));
+		}
+		partition_select->from_table =
+		    make_uniq<SubqueryRef>(std::move(node.select_statement), Identifier("_spark_part"));
+		auto wrapped = make_uniq<SelectStatement>();
+		wrapped->node = std::move(partition_select);
+		node.select_statement = std::move(wrapped);
 	}
 	auto action = or_action.value_or(OnConflictAction::THROW);
 	if (on_conflict_clause) {

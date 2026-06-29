@@ -2,6 +2,7 @@
 #include "duckdb/parser/tableref/table_function_ref.hpp"
 #include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/expression/function_expression.hpp"
+#include "duckdb/parser/peg/ast/partition_spec_entry.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/common/serializer/binary_serializer.hpp"
 #include "duckdb/common/serializer/memory_stream.hpp"
@@ -211,9 +212,11 @@ ShowType PEGTransformerFactory::TransformDescRule(PEGTransformer &transformer) {
 	return ShowType::DESCRIBE;
 }
 
-// DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget
+// DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget PartitionSpec?
 // Hand-written (the inlined keyword-choice modifier makes the generator skip this rule).
-unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule, const bool &has_result, const bool &has_result_1, DescribeTarget describe_target) {
+// partition_spec (DESC ... PARTITION (...)) is accepted and ignored — DuckDB has no per-partition describe, so we
+// describe the whole table.
+unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule, const bool &has_result, const bool &has_result_1, DescribeTarget describe_target, optional<vector<PartitionSpecEntry>> partition_spec) {
 	// child 0: DescribeRule, child 1: optional 'TABLE', child 2: optional EXTENDED/FORMATTED, child 3: DescribeTarget
 	bool extended = has_result_1;
 	string function_name = extended ? "spark_describe_extended" : "spark_describe";

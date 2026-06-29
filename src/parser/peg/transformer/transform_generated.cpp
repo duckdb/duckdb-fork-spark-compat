@@ -446,13 +446,26 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformAnalyzeStatemen
 		auto analyze_verbose_value = transformer.Transform<bool>(analyze_verbose_opt.GetResult());
 		analyze_verbose = analyze_verbose_value;
 	}
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
 	optional<AnalyzeTarget> analyze_target {};
-	auto &analyze_target_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	auto &analyze_target_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
 	if (analyze_target_opt.HasResult()) {
 		auto analyze_target_value = transformer.Transform<AnalyzeTarget>(analyze_target_opt.GetResult());
 		analyze_target = std::move(analyze_target_value);
 	}
-	auto result = TransformAnalyzeStatement(transformer, analyze_verbose, std::move(analyze_target));
+	optional<vector<PartitionSpecEntry>> partition_spec {};
+	auto &partition_spec_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	if (partition_spec_opt.HasResult()) {
+		auto partition_spec_value = transformer.Transform<vector<PartitionSpecEntry>>(partition_spec_opt.GetResult());
+		partition_spec = std::move(partition_spec_value);
+	}
+	bool has_result_1 {};
+	auto &has_result_1_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	has_result_1 = has_result_1_opt.HasResult();
+	auto result = TransformAnalyzeStatement(transformer, analyze_verbose, has_result, std::move(analyze_target),
+	                                        std::move(partition_spec), has_result_1);
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 
@@ -1414,6 +1427,42 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformWithoutRuleInte
                                                                                      ParseResult &parse_result) {
 	auto result = TransformWithoutRule(transformer);
 	return make_uniq<TypedTransformResult<bool>>(result);
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPartitionSpecInternal(PEGTransformer &transformer,
+                                                                                       ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	vector<PartitionSpecEntry> partition_spec_entry;
+	auto partition_spec_entry_items = ExtractParseResultsFromList(ExtractResultFromParens(list_pr.GetChild(1)));
+	for (auto &partition_spec_entry_item : partition_spec_entry_items) {
+		auto partition_spec_entry_value = transformer.Transform<PartitionSpecEntry>(partition_spec_entry_item.get());
+		partition_spec_entry.push_back(std::move(partition_spec_entry_value));
+	}
+	auto result = std::move(partition_spec_entry);
+	return make_uniq<TypedTransformResult<vector<PartitionSpecEntry>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPartitionSpecEntryInternal(PEGTransformer &transformer,
+                                                                                            ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto col_id = transformer.Transform<Identifier>(list_pr.GetChild(0));
+	optional<unique_ptr<ParsedExpression>> partition_spec_value {};
+	auto &partition_spec_value_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (partition_spec_value_opt.HasResult()) {
+		auto partition_spec_value_value =
+		    transformer.Transform<unique_ptr<ParsedExpression>>(partition_spec_value_opt.GetResult());
+		partition_spec_value = std::move(partition_spec_value_value);
+	}
+	auto result = TransformPartitionSpecEntry(transformer, col_id, std::move(partition_spec_value));
+	return make_uniq<TypedTransformResult<PartitionSpecEntry>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPartitionSpecValueInternal(PEGTransformer &transformer,
+                                                                                            ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto expression = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(1));
+	auto result = std::move(expression);
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformConnectStatementInternal(PEGTransformer &transformer,
@@ -3777,8 +3826,14 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeTableIn
 	auto &has_result_1_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
 	has_result_1 = has_result_1_opt.HasResult();
 	auto describe_target = transformer.Transform<DescribeTarget>(list_pr.GetChild(3));
-	auto result =
-	    TransformDescribeTable(transformer, describe_rule, has_result, has_result_1, std::move(describe_target));
+	optional<vector<PartitionSpecEntry>> partition_spec {};
+	auto &partition_spec_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	if (partition_spec_opt.HasResult()) {
+		auto partition_spec_value = transformer.Transform<vector<PartitionSpecEntry>>(partition_spec_opt.GetResult());
+		partition_spec = std::move(partition_spec_value);
+	}
+	auto result = TransformDescribeTable(transformer, describe_rule, has_result, has_result_1,
+	                                     std::move(describe_target), std::move(partition_spec));
 	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
 }
 
@@ -7162,37 +7217,47 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformInsertStatement
 		auto or_action_value = transformer.Transform<OnConflictAction>(or_action_opt.GetResult());
 		or_action = or_action_value;
 	}
-	auto insert_target = transformer.Transform<unique_ptr<BaseTableRef>>(list_pr.GetChild(4));
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto insert_target = transformer.Transform<unique_ptr<BaseTableRef>>(list_pr.GetChild(5));
+	optional<vector<PartitionSpecEntry>> partition_spec {};
+	auto &partition_spec_opt = list_pr.GetChild(6).Cast<OptionalParseResult>();
+	if (partition_spec_opt.HasResult()) {
+		auto partition_spec_value = transformer.Transform<vector<PartitionSpecEntry>>(partition_spec_opt.GetResult());
+		partition_spec = std::move(partition_spec_value);
+	}
 	optional<InsertColumnOrder> by_name_or_position {};
-	auto &by_name_or_position_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	auto &by_name_or_position_opt = list_pr.GetChild(7).Cast<OptionalParseResult>();
 	if (by_name_or_position_opt.HasResult()) {
 		auto by_name_or_position_value = transformer.Transform<InsertColumnOrder>(by_name_or_position_opt.GetResult());
 		by_name_or_position = by_name_or_position_value;
 	}
 	optional<vector<string>> insert_column_list {};
-	auto &insert_column_list_opt = list_pr.GetChild(6).Cast<OptionalParseResult>();
+	auto &insert_column_list_opt = list_pr.GetChild(8).Cast<OptionalParseResult>();
 	if (insert_column_list_opt.HasResult()) {
 		auto insert_column_list_value = transformer.Transform<vector<string>>(insert_column_list_opt.GetResult());
 		insert_column_list = insert_column_list_value;
 	}
-	auto insert_values = transformer.Transform<InsertValues>(list_pr.GetChild(7));
+	auto insert_values = transformer.Transform<InsertValues>(list_pr.GetChild(9));
 	optional<unique_ptr<OnConflictInfo>> on_conflict_clause {};
-	auto &on_conflict_clause_opt = list_pr.GetChild(8).Cast<OptionalParseResult>();
+	auto &on_conflict_clause_opt = list_pr.GetChild(10).Cast<OptionalParseResult>();
 	if (on_conflict_clause_opt.HasResult()) {
 		auto on_conflict_clause_value =
 		    transformer.Transform<unique_ptr<OnConflictInfo>>(on_conflict_clause_opt.GetResult());
 		on_conflict_clause = std::move(on_conflict_clause_value);
 	}
 	optional<vector<unique_ptr<ParsedExpression>>> returning_clause {};
-	auto &returning_clause_opt = list_pr.GetChild(9).Cast<OptionalParseResult>();
+	auto &returning_clause_opt = list_pr.GetChild(11).Cast<OptionalParseResult>();
 	if (returning_clause_opt.HasResult()) {
 		auto returning_clause_value =
 		    transformer.Transform<vector<unique_ptr<ParsedExpression>>>(returning_clause_opt.GetResult());
 		returning_clause = std::move(returning_clause_value);
 	}
-	auto result = TransformInsertStatement(transformer, std::move(with_clause), or_action, std::move(insert_target),
-	                                       by_name_or_position, insert_column_list, std::move(insert_values),
-	                                       std::move(on_conflict_clause), std::move(returning_clause));
+	auto result =
+	    TransformInsertStatement(transformer, std::move(with_clause), or_action, has_result, std::move(insert_target),
+	                             std::move(partition_spec), by_name_or_position, insert_column_list,
+	                             std::move(insert_values), std::move(on_conflict_clause), std::move(returning_clause));
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 
@@ -10396,6 +10461,9 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"WithOrWithout", &PEGTransformerFactory::TransformWithOrWithoutInternal},
 	    {"WithRule", &PEGTransformerFactory::TransformWithRuleInternal},
 	    {"WithoutRule", &PEGTransformerFactory::TransformWithoutRuleInternal},
+	    {"PartitionSpec", &PEGTransformerFactory::TransformPartitionSpecInternal},
+	    {"PartitionSpecEntry", &PEGTransformerFactory::TransformPartitionSpecEntryInternal},
+	    {"PartitionSpecValue", &PEGTransformerFactory::TransformPartitionSpecValueInternal},
 	    {"ConnectStatement", &PEGTransformerFactory::TransformConnectStatementInternal},
 	    {"DisconnectStatement", &PEGTransformerFactory::TransformDisconnectStatementInternal},
 	    {"SessionTarget", &PEGTransformerFactory::TransformSessionTargetInternal},

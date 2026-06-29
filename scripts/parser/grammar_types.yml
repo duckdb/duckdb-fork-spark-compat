@@ -527,6 +527,7 @@ Expression:
     - IndexElement
     - RelOptionArgumentOpt
     - ExpressionAlias
+    - PartitionSpecValue
 
 ColumnRefExpression:
   type: "unique_ptr<ColumnRefExpression>"
@@ -956,6 +957,18 @@ PartitionFieldEntry:
   by_value: true
   rules:
     - PartitionField
+
+PartitionSpecList:
+  type: "vector<PartitionSpecEntry>"
+  by_value: true
+  rules:
+    - PartitionSpec
+
+PartitionSpecEntry:
+  type: "PartitionSpecEntry"
+  by_value: true
+  rules:
+    - PartitionSpecEntry
 
 ColumnElements:
   type: "ColumnElements"
@@ -1805,3 +1818,6 @@ excluded_rules:
   - WithSchemaMode
   - SchemaModeName
   - PositionSeparator
+  # spark ANALYZE ... COMPUTE STATISTICS tail — parsed but ignored (duckdb has no partition/column stats)
+  - AnalyzeComputeStatistics
+  - AnalyzeStatsScope

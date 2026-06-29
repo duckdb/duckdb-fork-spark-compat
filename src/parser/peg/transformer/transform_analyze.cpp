@@ -1,13 +1,18 @@
 #include "duckdb/parser/peg/ast/analyze_target.hpp"
+#include "duckdb/parser/peg/ast/partition_spec_entry.hpp"
 #include "duckdb/parser/parsed_data/vacuum_info.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/statement/vacuum_statement.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
-unique_ptr<SQLStatement> PEGTransformerFactory::TransformAnalyzeStatement(PEGTransformer &transformer,
-                                                                          const optional<bool> &analyze_verbose,
-                                                                          optional<AnalyzeTarget> analyze_target) {
+// AnalyzeStatement <- 'ANALYZE' AnalyzeVerbose? 'TABLE'? AnalyzeTarget? PartitionSpec? AnalyzeComputeStatistics?
+// Maps to the no-op VacuumStatement (analyze=true). Spark's 'TABLE' keyword (has_result), the partition spec, and
+// the COMPUTE STATISTICS tail (has_result_1) are accepted and ignored — DuckDB has no partition/column statistics.
+unique_ptr<SQLStatement> PEGTransformerFactory::TransformAnalyzeStatement(
+    PEGTransformer &transformer, const optional<bool> &analyze_verbose, const bool &has_result,
+    optional<AnalyzeTarget> analyze_target, optional<vector<PartitionSpecEntry>> partition_spec,
+    const bool &has_result_1) {
 	VacuumOptions vacuum_options;
 	vacuum_options.analyze = true;
 	auto result = make_uniq<VacuumStatement>(vacuum_options);

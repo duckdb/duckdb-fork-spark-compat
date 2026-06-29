@@ -1,3 +1,7 @@
-AnalyzeStatement <- 'ANALYZE' AnalyzeVerbose? AnalyzeTarget?
+AnalyzeStatement <- 'ANALYZE' AnalyzeVerbose? 'TABLE'? AnalyzeTarget? PartitionSpec? AnalyzeComputeStatistics?
 AnalyzeTarget <- BaseTableName NameList?
 AnalyzeVerbose <- 'VERBOSE'
+# Spark's COMPUTE STATISTICS tail. DuckDB has no partition/column statistics, so the whole clause is parsed
+# and ignored (AnalyzeComputeStatistics / AnalyzeStatsScope are excluded_rules: matched but not transformed).
+AnalyzeComputeStatistics <- 'COMPUTE' 'STATISTICS' AnalyzeStatsScope?
+AnalyzeStatsScope <- 'NOSCAN' / ('FOR' 'ALL' 'COLUMNS') / ('FOR' 'COLUMNS' NameList)

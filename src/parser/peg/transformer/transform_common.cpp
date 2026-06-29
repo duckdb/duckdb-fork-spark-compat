@@ -1,4 +1,5 @@
 #include "duckdb/parser/peg/matcher.hpp"
+#include "duckdb/parser/peg/ast/partition_spec_entry.hpp"
 #include "duckdb/common/extra_type_info.hpp"
 #include "duckdb/common/enums/date_part_specifier.hpp"
 #include "duckdb/common/operator/cast_operators.hpp"
@@ -775,5 +776,18 @@ string PEGTransformerFactory::TransformStringLiteral(PEGTransformer &transformer
 Identifier PEGTransformerFactory::TransformConstraintName(PEGTransformer &transformer,
                                                           const Identifier &col_id_or_string) {
 	return Identifier(col_id_or_string);
+}
+
+// PartitionSpecEntry <- ColId PartitionSpecValue?
+// A partition column with an optional static value (col = value); a bare column is a dynamic partition.
+PartitionSpecEntry PEGTransformerFactory::TransformPartitionSpecEntry(PEGTransformer &transformer,
+                                                                      const Identifier &col_id,
+                                                                      optional<unique_ptr<ParsedExpression>> partition_spec_value) {
+	PartitionSpecEntry entry;
+	entry.name = col_id;
+	if (partition_spec_value) {
+		entry.value = std::move(*partition_spec_value);
+	}
+	return entry;
 }
 } // namespace duckdb_fork

@@ -11,6 +11,7 @@
 #include "duckdb/parser/peg/ast/create_table_definition.hpp"
 #include "duckdb/parser/peg/ast/partition_field_entry.hpp"
 #include "duckdb/parser/peg/ast/partition_sorted_options.hpp"
+#include "duckdb/parser/peg/ast/partition_spec_entry.hpp"
 #include "duckdb/parser/peg/ast/distinct_clause.hpp"
 #include "duckdb/parser/peg/ast/describe_target.hpp"
 #include "duckdb/parser/peg/ast/extension_repository_info.hpp"
@@ -550,9 +551,10 @@ public:
 	                                                        const Identifier &identifier_1);
 	static unique_ptr<TransformResultValue> TransformAnalyzeStatementInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
-	static unique_ptr<SQLStatement> TransformAnalyzeStatement(PEGTransformer &transformer,
-	                                                          const optional<bool> &analyze_verbose,
-	                                                          optional<AnalyzeTarget> analyze_target);
+	static unique_ptr<SQLStatement>
+	TransformAnalyzeStatement(PEGTransformer &transformer, const optional<bool> &analyze_verbose,
+	                          const bool &has_result, optional<AnalyzeTarget> analyze_target,
+	                          optional<vector<PartitionSpecEntry>> partition_spec, const bool &has_result_1);
 	static unique_ptr<TransformResultValue> TransformAnalyzeTargetInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static AnalyzeTarget TransformAnalyzeTarget(PEGTransformer &transformer, unique_ptr<BaseTableRef> base_table_name,
@@ -905,6 +907,14 @@ public:
 	static unique_ptr<TransformResultValue> TransformWithoutRuleInternal(PEGTransformer &transformer,
 	                                                                     ParseResult &parse_result);
 	static bool TransformWithoutRule(PEGTransformer &transformer);
+	static unique_ptr<TransformResultValue> TransformPartitionSpecInternal(PEGTransformer &transformer,
+	                                                                       ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformPartitionSpecEntryInternal(PEGTransformer &transformer,
+	                                                                            ParseResult &parse_result);
+	static PartitionSpecEntry TransformPartitionSpecEntry(PEGTransformer &transformer, const Identifier &col_id,
+	                                                      optional<unique_ptr<ParsedExpression>> partition_spec_value);
+	static unique_ptr<TransformResultValue> TransformPartitionSpecValueInternal(PEGTransformer &transformer,
+	                                                                            ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformConnectStatementInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SQLStatement> TransformConnectStatement(PEGTransformer &transformer,
@@ -1699,7 +1709,8 @@ public:
 	                                                                       ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule,
 	                                                    const bool &has_result, const bool &has_result_1,
-	                                                    DescribeTarget describe_target);
+	                                                    DescribeTarget describe_target,
+	                                                    optional<vector<PartitionSpecEntry>> partition_spec);
 	static unique_ptr<TransformResultValue> TransformShowQualifiedNameInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformShowQualifiedName(PEGTransformer &transformer,
@@ -2854,13 +2865,13 @@ public:
 	                                                                         ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformInsertStatementInternal(PEGTransformer &transformer,
 	                                                                         ParseResult &parse_result);
-	static unique_ptr<SQLStatement>
-	TransformInsertStatement(PEGTransformer &transformer, optional<CommonTableExpressionMap> with_clause,
-	                         const optional<OnConflictAction> &or_action, unique_ptr<BaseTableRef> insert_target,
-	                         const optional<InsertColumnOrder> &by_name_or_position,
-	                         const optional<vector<string>> &insert_column_list, InsertValues insert_values,
-	                         optional<unique_ptr<OnConflictInfo>> on_conflict_clause,
-	                         optional<vector<unique_ptr<ParsedExpression>>> returning_clause);
+	static unique_ptr<SQLStatement> TransformInsertStatement(
+	    PEGTransformer &transformer, optional<CommonTableExpressionMap> with_clause,
+	    const optional<OnConflictAction> &or_action, const bool &has_result, unique_ptr<BaseTableRef> insert_target,
+	    optional<vector<PartitionSpecEntry>> partition_spec, const optional<InsertColumnOrder> &by_name_or_position,
+	    const optional<vector<string>> &insert_column_list, InsertValues insert_values,
+	    optional<unique_ptr<OnConflictInfo>> on_conflict_clause,
+	    optional<vector<unique_ptr<ParsedExpression>>> returning_clause);
 	static unique_ptr<TransformResultValue> TransformOrActionInternal(PEGTransformer &transformer,
 	                                                                  ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformInsertOrReplaceInternal(PEGTransformer &transformer,
