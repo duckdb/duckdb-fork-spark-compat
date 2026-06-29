@@ -495,6 +495,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	typefunc_keyword_map.insert("binary");
 	typefunc_keyword_map.insert("boolean");
 	typefunc_keyword_map.insert("by");
+	typefunc_keyword_map.insert("char");
 	typefunc_keyword_map.insert("collation");
 	typefunc_keyword_map.insert("columns");
 	typefunc_keyword_map.insert("concurrently");

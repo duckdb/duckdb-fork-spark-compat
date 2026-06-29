@@ -665,6 +665,7 @@ const char INLINED_PEG_GRAMMAR[] = {
 	"'BINARY' /\n"
 	"'BIGINT' /\n"
 	"'BOOLEAN' /\n"
+	"'CHAR' /\n"
 	"'COLLATION' /\n"
 	"'CONCURRENTLY' /\n"
 	"'CROSS' /\n"

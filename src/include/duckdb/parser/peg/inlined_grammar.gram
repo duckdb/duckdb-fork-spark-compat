@@ -678,6 +678,7 @@ FuncNameKeyword <- 'ARRAY' /
 'BINARY' /
 'BIGINT' /
 'BOOLEAN' /
+'CHAR' /
 'COLLATION' /
 'CONCURRENTLY' /
 'CROSS' /
