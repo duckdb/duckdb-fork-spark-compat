@@ -75,7 +75,9 @@ string NormalizeAutoName(const string &name) {
 }
 
 //! If `expr` is a bare (single-part) column reference naming the Spark auto-name of an unaliased
-//! function select item, replace it with a copy of that select expression.
+//! select item, resolve it to that item. A constant match becomes a 1-based positional reference: a
+//! copy of the constant would be read as a positional ordinal by value (e.g. GROUP BY 7 -> 7th
+//! column). A function match is replaced with a copy of the select expression.
 void RewriteAutoNameRef(unique_ptr<ParsedExpression> &expr,
                         const vector<unique_ptr<ParsedExpression>> &select_list,
                         const unordered_map<string, idx_t> &auto_names) {
@@ -90,20 +92,32 @@ void RewriteAutoNameRef(unique_ptr<ParsedExpression> &expr,
 	if (entry == auto_names.end()) {
 		return;
 	}
-	expr = select_list[entry->second]->Copy();
+	auto &matched = *select_list[entry->second];
+	if (matched.GetExpressionClass() == ExpressionClass::CONSTANT) {
+		expr = make_uniq<ConstantExpression>(Value::INTEGER(UnsafeNumericCast<int32_t>(entry->second + 1)));
+	} else {
+		expr = matched.Copy();
+	}
 }
 
 //! Spark lets GROUP BY / ORDER BY reference an unaliased select item by its auto-generated output
-//! name. DuckDB only matches explicit aliases, so resolve such references here by rewriting them to a
-//! copy of the matching select expression. Restricted to function calls: their auto-names contain
-//! characters that cannot appear in an unquoted identifier, so they never collide with a real column
-//! (a constant auto-name such as "1" can, and would shadow a column of that name). Plain column
+//! name. DuckDB only matches explicit aliases, so resolve such references here by rewriting them to
+//! the matching select item. Function calls are always eligible: their auto-names contain characters
+//! that cannot appear in an unquoted identifier, so they never collide with a real column. Constants
+//! are eligible only when there is no FROM clause: a constant auto-name such as "1" can collide with a
+//! real column and would shadow it, but with no FROM there are no real columns. Plain column
 //! references are left to DuckDB's normal resolution.
 void RewriteSparkAutoNameReferences(SelectNode &node) {
+	bool no_from = node.from_table && node.from_table->type == TableReferenceType::EMPTY_FROM;
 	unordered_map<string, idx_t> auto_names;
 	for (idx_t i = 0; i < node.select_list.size(); i++) {
 		auto &select_expr = node.select_list[i];
-		if (select_expr->HasAlias() || select_expr->GetExpressionClass() != ExpressionClass::FUNCTION) {
+		if (select_expr->HasAlias()) {
+			continue;
+		}
+		auto expr_class = select_expr->GetExpressionClass();
+		if (expr_class != ExpressionClass::FUNCTION &&
+		    !(no_from && expr_class == ExpressionClass::CONSTANT)) {
 			continue;
 		}
 		auto name = SparkColumnName(*select_expr);
