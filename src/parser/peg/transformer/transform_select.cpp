@@ -22,9 +22,112 @@
 #include "duckdb/parser/query_node/insert_query_node.hpp"
 #include "duckdb/parser/query_node/update_query_node.hpp"
 #include "duckdb/parser/query_node/delete_query_node.hpp"
+#include "duckdb/parser/expression/columnref_expression.hpp"
+#include "duckdb/parser/expression/function_expression.hpp"
+#include "duckdb/parser/expression/constant_expression.hpp"
+#include "duckdb/common/unordered_map.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
+
+namespace {
+
+//! Render an expression's Spark auto-generated output column name (covers column refs, constants and
+//! function calls). Returns nullopt for kinds we don't render, so such expressions never match.
+optional<string> SparkColumnName(const ParsedExpression &expr) {
+	switch (expr.GetExpressionClass()) {
+	case ExpressionClass::COLUMN_REF:
+		return expr.Cast<ColumnRefExpression>().GetColumnName().GetIdentifierName();
+	case ExpressionClass::CONSTANT:
+		return expr.Cast<ConstantExpression>().GetValue().ToString();
+	case ExpressionClass::FUNCTION: {
+		auto &func = expr.Cast<FunctionExpression>();
+		string result = StringUtil::Lower(func.FunctionName().GetIdentifierName()) + "(";
+		bool first = true;
+		for (auto &arg : func.GetArguments()) {
+			if (arg.HasName()) {
+				return optional<string>();
+			}
+			auto child_name = SparkColumnName(arg.GetExpression());
+			if (!child_name.has_value()) {
+				return optional<string>();
+			}
+			result += first ? *child_name : ", " + *child_name;
+			first = false;
+		}
+		return result + ")";
+	}
+	default:
+		return optional<string>();
+	}
+}
+
+//! Strip all whitespace and lowercase, so a clause reference matches a Spark auto-name regardless of
+//! spacing/case (back-tick identifiers arrive whitespace-collapsed).
+string NormalizeAutoName(const string &name) {
+	string result;
+	for (auto c : name) {
+		if (!StringUtil::CharacterIsSpace(c)) {
+			result += c;
+		}
+	}
+	return StringUtil::Lower(result);
+}
+
+//! If `expr` is a bare (single-part) column reference naming the Spark auto-name of an unaliased
+//! function select item, replace it with a copy of that select expression.
+void RewriteAutoNameRef(unique_ptr<ParsedExpression> &expr,
+                        const vector<unique_ptr<ParsedExpression>> &select_list,
+                        const unordered_map<string, idx_t> &auto_names) {
+	if (!expr || expr->GetExpressionClass() != ExpressionClass::COLUMN_REF) {
+		return;
+	}
+	auto &col = expr->Cast<ColumnRefExpression>();
+	if (col.IsQualified()) {
+		return;
+	}
+	auto entry = auto_names.find(NormalizeAutoName(col.GetColumnName().GetIdentifierName()));
+	if (entry == auto_names.end()) {
+		return;
+	}
+	expr = select_list[entry->second]->Copy();
+}
+
+//! Spark lets GROUP BY / ORDER BY reference an unaliased select item by its auto-generated output
+//! name. DuckDB only matches explicit aliases, so resolve such references here by rewriting them to a
+//! copy of the matching select expression. Restricted to function calls: their auto-names contain
+//! characters that cannot appear in an unquoted identifier, so they never collide with a real column
+//! (a constant auto-name such as "1" can, and would shadow a column of that name). Plain column
+//! references are left to DuckDB's normal resolution.
+void RewriteSparkAutoNameReferences(SelectNode &node) {
+	unordered_map<string, idx_t> auto_names;
+	for (idx_t i = 0; i < node.select_list.size(); i++) {
+		auto &select_expr = node.select_list[i];
+		if (select_expr->HasAlias() || select_expr->GetExpressionClass() != ExpressionClass::FUNCTION) {
+			continue;
+		}
+		auto name = SparkColumnName(*select_expr);
+		if (name.has_value()) {
+			auto_names.emplace(NormalizeAutoName(*name), i);
+		}
+	}
+	if (auto_names.empty()) {
+		return;
+	}
+	for (auto &group_expr : node.groups.group_expressions) {
+		RewriteAutoNameRef(group_expr, node.select_list, auto_names);
+	}
+	for (auto &modifier : node.modifiers) {
+		if (modifier->type != ResultModifierType::ORDER_MODIFIER) {
+			continue;
+		}
+		for (auto &order : modifier->Cast<OrderModifier>().orders) {
+			RewriteAutoNameRef(order.expression, node.select_list, auto_names);
+		}
+	}
+}
+
+} // namespace
 
 unique_ptr<SQLStatement>
 PEGTransformerFactory::TransformSelectStatement(PEGTransformer &transformer,
@@ -54,6 +157,7 @@ unique_ptr<SelectStatement> PEGTransformerFactory::TransformSelectStatementInter
 		return select_statement;
 	}
 	auto &select_node = select_statement->node->Cast<SelectNode>();
+	RewriteSparkAutoNameReferences(select_node);
 	if (select_node.from_table->type != TableReferenceType::SHOW_REF) {
 		return select_statement;
 	}
