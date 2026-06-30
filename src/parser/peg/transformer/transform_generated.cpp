@@ -2462,14 +2462,21 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateStatement
 		auto or_replace_value = transformer.Transform<bool>(or_replace_opt.GetResult());
 		or_replace = or_replace_value;
 	}
+	optional<bool> global_temporary {};
+	auto &global_temporary_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	if (global_temporary_opt.HasResult()) {
+		auto global_temporary_value = transformer.Transform<bool>(global_temporary_opt.GetResult());
+		global_temporary = global_temporary_value;
+	}
 	optional<SecretPersistType> temporary {};
-	auto &temporary_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	auto &temporary_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
 	if (temporary_opt.HasResult()) {
 		auto temporary_value = transformer.Transform<SecretPersistType>(temporary_opt.GetResult());
 		temporary = temporary_value;
 	}
-	auto create_statement_variation = transformer.Transform<unique_ptr<CreateStatement>>(list_pr.GetChild(3));
-	auto result = TransformCreateStatement(transformer, or_replace, temporary, std::move(create_statement_variation));
+	auto create_statement_variation = transformer.Transform<unique_ptr<CreateStatement>>(list_pr.GetChild(4));
+	auto result = TransformCreateStatement(transformer, or_replace, global_temporary, temporary,
+	                                       std::move(create_statement_variation));
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 
@@ -2485,6 +2492,12 @@ PEGTransformerFactory::TransformCreateStatementVariationInternal(PEGTransformer 
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformOrReplaceInternal(PEGTransformer &transformer,
                                                                                    ParseResult &parse_result) {
 	auto result = TransformOrReplace(transformer);
+	return make_uniq<TypedTransformResult<bool>>(result);
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformGlobalTemporaryInternal(PEGTransformer &transformer,
+                                                                                         ParseResult &parse_result) {
+	auto result = TransformGlobalTemporary(transformer);
 	return make_uniq<TypedTransformResult<bool>>(result);
 }
 
@@ -10475,6 +10488,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"CreateStatement", &PEGTransformerFactory::TransformCreateStatementInternal},
 	    {"CreateStatementVariation", &PEGTransformerFactory::TransformCreateStatementVariationInternal},
 	    {"OrReplace", &PEGTransformerFactory::TransformOrReplaceInternal},
+	    {"GlobalTemporary", &PEGTransformerFactory::TransformGlobalTemporaryInternal},
 	    {"Temporary", &PEGTransformerFactory::TransformTemporaryInternal},
 	    {"Persistent", &PEGTransformerFactory::TransformPersistentInternal},
 	    {"TempPersistent", &PEGTransformerFactory::TransformTempPersistentInternal},

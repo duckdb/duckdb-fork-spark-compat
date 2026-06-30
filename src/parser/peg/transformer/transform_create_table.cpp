@@ -24,6 +24,7 @@ using namespace duckdb;
 
 unique_ptr<SQLStatement>
 PEGTransformerFactory::TransformCreateStatement(PEGTransformer &transformer, const optional<bool> &or_replace,
+                                                const optional<bool> &global_temporary,
                                                 const optional<SecretPersistType> &temporary,
                                                 unique_ptr<CreateStatement> create_statement_variation) {
 	auto result = std::move(create_statement_variation);
@@ -39,7 +40,17 @@ PEGTransformerFactory::TransformCreateStatement(PEGTransformer &transformer, con
 		secret_info.persist_type = temporary ? *temporary : SecretPersistType::DEFAULT;
 	}
 	result->info->temporary = temporary && *temporary == SecretPersistType::TEMPORARY;
+	if (global_temporary && *global_temporary && result->info->type == CatalogType::VIEW_ENTRY) {
+		// Spark global temporary views live in the `global_temp` namespace (global_temp.<name>),
+		// modelled here as a regular view in a `global_temp` schema.
+		result->info->schema = "global_temp";
+		result->info->temporary = false;
+	}
 	return std::move(result);
+}
+
+bool PEGTransformerFactory::TransformGlobalTemporary(PEGTransformer &transformer) {
+	return true;
 }
 
 SecretPersistType PEGTransformerFactory::TransformPersistent(PEGTransformer &transformer) {

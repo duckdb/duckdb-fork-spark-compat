@@ -1276,6 +1276,7 @@ public:
 	                                                                         ParseResult &parse_result);
 	static unique_ptr<SQLStatement> TransformCreateStatement(PEGTransformer &transformer,
 	                                                         const optional<bool> &or_replace,
+	                                                         const optional<bool> &global_temporary,
 	                                                         const optional<SecretPersistType> &temporary,
 	                                                         unique_ptr<CreateStatement> create_statement_variation);
 	static unique_ptr<TransformResultValue> TransformCreateStatementVariationInternal(PEGTransformer &transformer,
@@ -1283,6 +1284,9 @@ public:
 	static unique_ptr<TransformResultValue> TransformOrReplaceInternal(PEGTransformer &transformer,
 	                                                                   ParseResult &parse_result);
 	static bool TransformOrReplace(PEGTransformer &transformer);
+	static unique_ptr<TransformResultValue> TransformGlobalTemporaryInternal(PEGTransformer &transformer,
+	                                                                         ParseResult &parse_result);
+	static bool TransformGlobalTemporary(PEGTransformer &transformer);
 	static unique_ptr<TransformResultValue> TransformTemporaryInternal(PEGTransformer &transformer,
 	                                                                   ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformPersistentInternal(PEGTransformer &transformer,

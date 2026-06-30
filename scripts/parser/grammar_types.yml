@@ -1122,6 +1122,7 @@ Bool:
     - CheckpointForce
     - IfNotExists
     - OrReplace
+    - GlobalTemporary
     - FunctionTypeMacro
     - FunctionTypeMacroKeyword
     - FunctionTypeFunction
