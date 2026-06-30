@@ -990,13 +990,20 @@ PEGTransformerFactory::TransformLikeClause(PEGTransformer &transformer, const st
 	string like_variation = like_variations;
 	vector<unique_ptr<ParsedExpression>> like_children;
 	like_children.push_back(std::move(other_operator_expression));
+	unique_ptr<ParsedExpression> escape;
 	if (escape_clause) {
+		escape = std::move(*escape_clause);
+	} else if (like_variation == "~~" || like_variation == "~~*") {
+		// Spark uses '\' as the default LIKE/ILIKE escape character
+		escape = make_uniq<ConstantExpression>(Value("\\"));
+	}
+	if (escape) {
 		if (like_variation == "~~") {
 			like_variation = "like_escape";
 		} else if (like_variation == "~~*") {
 			like_variation = "ilike_escape";
 		}
-		like_children.push_back(std::move(*escape_clause));
+		like_children.push_back(std::move(escape));
 	}
 	auto result = make_uniq<FunctionExpression>(Identifier(like_variation), std::move(like_children));
 	if (like_variation != "regexp_full_match") {
