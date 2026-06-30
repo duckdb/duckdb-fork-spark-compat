@@ -1739,10 +1739,16 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformStarExpression(
     const optional<qualified_column_map_t<string>> &rename_list) {
 	auto result = make_uniq<StarExpression>();
 	if (star_qualifier_list) {
-		if (star_qualifier_list->size() > 1) {
-			throw ParserException("Did not expect more than one column in front of a star expression");
+		auto &qualifiers = *star_qualifier_list;
+		// Spark allows a multi-part qualifier before '*' (e.g. schema.tbl.*, tbl.struct_col.*).
+		// Disambiguating schema.tbl.* from tbl.struct_col.* needs the catalog, so carry the full
+		// qualifier and resolve it at bind time in BindContext::GenerateAllColumnExpressions.
+		result->RelationNameMutable() = Identifier(qualifiers.back());
+		if (qualifiers.size() > 1) {
+			for (auto &qualifier : qualifiers) {
+				result->RelationNamesMutable().push_back(Identifier(qualifier));
+			}
 		}
-		result->RelationNameMutable() = Identifier((*star_qualifier_list)[0]);
 	}
 	if (exclude_list) {
 		result->ExcludeListMutable() = *exclude_list;
