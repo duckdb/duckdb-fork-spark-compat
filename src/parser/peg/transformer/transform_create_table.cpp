@@ -577,37 +577,34 @@ void PEGTransformerFactory::VerifyColumnRefs(const ParsedExpression &expr) {
 	});
 }
 
-// Fold a PARTITIONED BY list into a PartitionSortedOptions: reference-form fields contribute an (ignored)
-// partition key, typed-form fields contribute a column that is later appended to the table schema.
+// Fold a PARTITIONED BY list into a PartitionSortedOptions: a bare reference contributes an (ignored)
+// partition key, while a typed field (name dataType) materializes into a new column appended to the schema.
 static void FoldPartitionFields(vector<PartitionFieldEntry> &fields, PartitionSortedOptions &result) {
 	for (auto &field : fields) {
-		if (field.column) {
-			result.partition_columns.AddColumn(std::move(*field.column));
-		} else {
-			result.partition_keys.push_back(std::move(field.key));
+		if (!field.type) {
+			result.partition_keys.push_back(std::move(field.expression));
+			continue;
 		}
+		if (field.expression->GetExpressionClass() != ExpressionClass::COLUMN_REF) {
+			throw ParserException("PARTITIONED BY column must be a simple column name");
+		}
+		auto &colref = field.expression->Cast<ColumnRefExpression>();
+		if (colref.IsQualified()) {
+			throw ParserException("PARTITIONED BY column must be an unqualified column name");
+		}
+		result.partition_columns.AddColumn(ColumnDefinition(colref.GetColumnName(), *field.type));
 	}
 }
 
 // PartitionField <- Expression Type?
-// With a trailing type it is a typed column definition (colType) declaring a new partition column; without
-// one it is a reference to an already-declared column.
+// Store the parsed expression and optional type verbatim; FoldPartitionFields decides whether the field is a
+// reference to an existing column or a new typed column appended to the schema.
 PartitionFieldEntry PEGTransformerFactory::TransformPartitionField(PEGTransformer &transformer,
                                                                    unique_ptr<ParsedExpression> expression,
                                                                    const optional<LogicalType> &type) {
 	PartitionFieldEntry entry;
-	if (type) {
-		if (expression->GetExpressionClass() != ExpressionClass::COLUMN_REF) {
-			throw ParserException("PARTITIONED BY column must be a simple column name");
-		}
-		auto &colref = expression->Cast<ColumnRefExpression>();
-		if (colref.IsQualified()) {
-			throw ParserException("PARTITIONED BY column must be an unqualified column name");
-		}
-		entry.column = make_uniq<ColumnDefinition>(colref.GetColumnName(), *type);
-	} else {
-		entry.key = std::move(expression);
-	}
+	entry.expression = std::move(expression);
+	entry.type = type;
 	return entry;
 }
 

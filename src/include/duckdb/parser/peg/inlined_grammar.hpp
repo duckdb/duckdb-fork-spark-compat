@@ -221,7 +221,6 @@ const char INLINED_PEG_GRAMMAR[] = {
 	"'CLASS' /\n"
 	"'CLOSE' /\n"
 	"'CLUSTER' /\n"
-	"'CODEGEN' /\n"
 	"'COMMENT' /\n"
 	"'COMMENTS' /\n"
 	"'COMMIT' /\n"

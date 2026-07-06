@@ -234,7 +234,6 @@ UnreservedKeyword <- 'ABORT' /
 'CLASS' /
 'CLOSE' /
 'CLUSTER' /
-'CODEGEN' /
 'COMMENT' /
 'COMMENTS' /
 'COMMIT' /

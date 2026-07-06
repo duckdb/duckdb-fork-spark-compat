@@ -120,7 +120,6 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	unreserved_keyword_map.insert("class");
 	unreserved_keyword_map.insert("close");
 	unreserved_keyword_map.insert("cluster");
-	unreserved_keyword_map.insert("codegen");
 	unreserved_keyword_map.insert("comment");
 	unreserved_keyword_map.insert("comments");
 	unreserved_keyword_map.insert("commit");
