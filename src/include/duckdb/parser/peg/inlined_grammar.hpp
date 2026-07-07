@@ -67,7 +67,7 @@ const char INLINED_PEG_GRAMMAR[] = {
 	"NumberLiteral <- < [+-]?[0-9]*([.][0-9]*)? >\n"
 	"StringLiteral <- '\\'' [^\\']* '\\''\n"
 	"Type <- TypeVariations ArrayBounds*\n"
-	"TypeVariations <- TimeType / IntervalType / BitType / RowType / VariantType / MapType / GeometryType / UnionType / NumericType / SetofType / SimpleType\n"
+	"TypeVariations <- TimeType / IntervalType / BitType / RowType / VariantType / MapType / ArrayAngleBracketsType / TupleType / GeometryType / UnionType / NumericType / SetofType / SimpleType\n"
 	"SimpleType <- CharacterSimpleType / QualifiedSimpleType\n"
 	"CharacterSimpleType <- CharacterType TypeModifiers?\n"
 	"QualifiedSimpleType <- QualifiedTypeName TypeModifiers?\n"
