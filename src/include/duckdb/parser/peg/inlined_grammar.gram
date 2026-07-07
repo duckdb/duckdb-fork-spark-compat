@@ -842,6 +842,8 @@ TypeLiteral <- ColId StringLiteral
 IntervalLiteral <- 'INTERVAL' IntervalParameter Interval?
 IntervalParameter <- IntervalStringParameter / NumberLiteral / ParensExpression
 IntervalStringParameter <- StringLiteral
+IntervalMultiUnitLiteral <- 'INTERVAL' IntervalUnitPair IntervalUnitPair+
+IntervalUnitPair <- NumberLiteral Interval
 FrameClause <- Framing FrameExtent WindowExcludeClause?
 Framing <- RowsFraming / RangeFraming / GroupsFraming
 RowsFraming <- 'ROWS'
@@ -907,6 +909,7 @@ SingleExpression <-
     SubqueryExpression /
     SpecialFunctionExpression /
     ParenthesisExpression /
+    IntervalMultiUnitLiteral /
     IntervalLiteral /
     TypeLiteral /
     CaseExpression /

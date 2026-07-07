@@ -5108,6 +5108,33 @@ PEGTransformerFactory::TransformIntervalStringParameterInternal(PEGTransformer &
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformIntervalMultiUnitLiteralInternal(PEGTransformer &transformer,
+                                                                 ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto interval_unit_pair =
+	    transformer.Transform<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>(list_pr.GetChild(1));
+	vector<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>> interval_unit_pair_1;
+	auto &interval_unit_pair_1_repeat = list_pr.GetChild(2).Cast<RepeatParseResult>();
+	for (auto &interval_unit_pair_1_item : interval_unit_pair_1_repeat.GetChildren()) {
+		auto interval_unit_pair_1_value = transformer.Transform<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>(
+		    interval_unit_pair_1_item.get());
+		interval_unit_pair_1.push_back(std::move(interval_unit_pair_1_value));
+	}
+	auto result =
+	    TransformIntervalMultiUnitLiteral(transformer, std::move(interval_unit_pair), std::move(interval_unit_pair_1));
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformIntervalUnitPairInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto number_literal = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(0));
+	auto interval = transformer.Transform<DatePartSpecifier>(list_pr.GetChild(1));
+	auto result = TransformIntervalUnitPair(transformer, std::move(number_literal), interval);
+	return make_uniq<TypedTransformResult<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformFrameClauseInternal(PEGTransformer &transformer,
                                                                                      ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -10841,6 +10868,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"IntervalLiteral", &PEGTransformerFactory::TransformIntervalLiteralInternal},
 	    {"IntervalParameter", &PEGTransformerFactory::TransformIntervalParameterInternal},
 	    {"IntervalStringParameter", &PEGTransformerFactory::TransformIntervalStringParameterInternal},
+	    {"IntervalMultiUnitLiteral", &PEGTransformerFactory::TransformIntervalMultiUnitLiteralInternal},
+	    {"IntervalUnitPair", &PEGTransformerFactory::TransformIntervalUnitPairInternal},
 	    {"FrameClause", &PEGTransformerFactory::TransformFrameClauseInternal},
 	    {"Framing", &PEGTransformerFactory::TransformFramingInternal},
 	    {"RowsFraming", &PEGTransformerFactory::TransformRowsFramingInternal},

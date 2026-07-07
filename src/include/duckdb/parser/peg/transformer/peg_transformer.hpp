@@ -2277,6 +2277,16 @@ public:
 	                                                                                 ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformIntervalStringParameter(PEGTransformer &transformer,
 	                                                                     const string &string_literal);
+	static unique_ptr<TransformResultValue> TransformIntervalMultiUnitLiteralInternal(PEGTransformer &transformer,
+	                                                                                  ParseResult &parse_result);
+	static unique_ptr<ParsedExpression> TransformIntervalMultiUnitLiteral(
+	    PEGTransformer &transformer, pair<unique_ptr<ParsedExpression>, DatePartSpecifier> interval_unit_pair,
+	    vector<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>> interval_unit_pair_1);
+	static unique_ptr<TransformResultValue> TransformIntervalUnitPairInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static pair<unique_ptr<ParsedExpression>, DatePartSpecifier>
+	TransformIntervalUnitPair(PEGTransformer &transformer, unique_ptr<ParsedExpression> number_literal,
+	                          const DatePartSpecifier &interval);
 	static unique_ptr<TransformResultValue> TransformFrameClauseInternal(PEGTransformer &transformer,
 	                                                                     ParseResult &parse_result);
 	static WindowFrame TransformFrameClause(PEGTransformer &transformer, const string &framing,

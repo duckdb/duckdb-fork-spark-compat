@@ -16,6 +16,7 @@
 #include "duckdb/parser/tableref/emptytableref.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
 #include "duckdb/common/string_util.hpp"
+#include "duckdb/common/types/interval.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
@@ -2692,6 +2693,117 @@ PEGTransformerFactory::TransformIntervalLiteral(PEGTransformer &transformer,
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformIntervalStringParameter(PEGTransformer &transformer,
                                                                                      const string &string_literal) {
 	return make_uniq<ConstantExpression>(Value(string_literal));
+}
+
+static unique_ptr<ParsedExpression> IntervalBinaryOp(string op, unique_ptr<ParsedExpression> left,
+                                                     unique_ptr<ParsedExpression> right) {
+	vector<unique_ptr<ParsedExpression>> children;
+	children.push_back(std::move(left));
+	children.push_back(std::move(right));
+	auto func = make_uniq<FunctionExpression>(Identifier(std::move(op)), std::move(children));
+	func->IsOperatorMutable() = true;
+	return std::move(func);
+}
+
+static unique_ptr<ParsedExpression> IntervalCall(string name, unique_ptr<ParsedExpression> arg) {
+	vector<unique_ptr<ParsedExpression>> children;
+	children.push_back(std::move(arg));
+	return make_uniq<FunctionExpression>(Identifier(std::move(name)), std::move(children));
+}
+
+// Microseconds per day-time interval unit, or 0 if the unit is not a day-time unit.
+static int64_t IntervalDayTimeMicros(DatePartSpecifier unit) {
+	switch (unit) {
+	case DatePartSpecifier::WEEK:
+		return 7 * Interval::MICROS_PER_DAY;
+	case DatePartSpecifier::DAY:
+		return Interval::MICROS_PER_DAY;
+	case DatePartSpecifier::HOUR:
+		return Interval::MICROS_PER_HOUR;
+	case DatePartSpecifier::MINUTE:
+		return Interval::MICROS_PER_MINUTE;
+	case DatePartSpecifier::SECOND:
+		return Interval::MICROS_PER_SEC;
+	case DatePartSpecifier::MILLISECONDS:
+		return Interval::MICROS_PER_MSEC;
+	case DatePartSpecifier::MICROSECONDS:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+// Months per year-month interval unit, or 0 if the unit is not a year-month unit.
+static int64_t IntervalYearMonthMonths(DatePartSpecifier unit) {
+	switch (unit) {
+	case DatePartSpecifier::YEAR:
+		return Interval::MONTHS_PER_YEAR;
+	case DatePartSpecifier::MONTH:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+pair<unique_ptr<ParsedExpression>, DatePartSpecifier>
+PEGTransformerFactory::TransformIntervalUnitPair(PEGTransformer &transformer,
+                                                 unique_ptr<ParsedExpression> number_literal,
+                                                 const DatePartSpecifier &interval) {
+	return std::make_pair(std::move(number_literal), interval);
+}
+
+// Spark folds a chain of `<value> <unit>` pairs into one normalized ANSI interval: all-year-month
+// units become a total month count, all-day-time units a total microsecond count (so e.g. 40 hours
+// rolls into +1 day). Mixing the two families is an error.
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformIntervalMultiUnitLiteral(
+    PEGTransformer &transformer, pair<unique_ptr<ParsedExpression>, DatePartSpecifier> interval_unit_pair,
+    vector<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>> interval_unit_pair_1) {
+	vector<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>> pairs;
+	pairs.push_back(std::move(interval_unit_pair));
+	for (auto &p : interval_unit_pair_1) {
+		pairs.push_back(std::move(p));
+	}
+
+	bool has_year_month = false;
+	bool has_day_time = false;
+	for (auto &p : pairs) {
+		if (IntervalYearMonthMonths(p.second) > 0) {
+			has_year_month = true;
+		} else if (IntervalDayTimeMicros(p.second) > 0) {
+			has_day_time = true;
+		} else {
+			throw ParserException("Unsupported unit in multi-unit interval literal");
+		}
+	}
+	if (has_year_month && has_day_time) {
+		throw ParserException("Cannot mix year-month and day-time units in an interval literal");
+	}
+
+	if (has_year_month) {
+		unique_ptr<ParsedExpression> total_months;
+		for (auto &p : pairs) {
+			auto months = IntervalBinaryOp("*", std::move(p.first),
+			                               make_uniq<ConstantExpression>(Value::BIGINT(IntervalYearMonthMonths(p.second))));
+			total_months = total_months ? IntervalBinaryOp("+", std::move(total_months), std::move(months))
+			                            : std::move(months);
+		}
+		return IntervalCall("to_months", std::move(total_months));
+	}
+
+	// Sum every component to a BIGINT microsecond total, then split it back into a normalized
+	// (days, sub-day microseconds) interval so day-time overflow rolls up like Spark.
+	unique_ptr<ParsedExpression> total_micros;
+	for (auto &p : pairs) {
+		auto scaled = IntervalBinaryOp("*", std::move(p.first),
+		                               make_uniq<ConstantExpression>(Value::BIGINT(IntervalDayTimeMicros(p.second))));
+		auto micros = make_uniq<CastExpression>(LogicalType::BIGINT, std::move(scaled));
+		total_micros = total_micros ? IntervalBinaryOp("+", std::move(total_micros), std::move(micros))
+		                            : std::move(micros);
+	}
+	auto micros_per_day = [] { return make_uniq<ConstantExpression>(Value::BIGINT(Interval::MICROS_PER_DAY)); };
+	auto days = IntervalCall("to_days", IntervalBinaryOp("//", total_micros->Copy(), micros_per_day()));
+	auto rem = IntervalCall("to_microseconds", IntervalBinaryOp("%", std::move(total_micros), micros_per_day()));
+	return IntervalBinaryOp("+", std::move(days), std::move(rem));
 }
 
 unique_ptr<ParsedExpression>

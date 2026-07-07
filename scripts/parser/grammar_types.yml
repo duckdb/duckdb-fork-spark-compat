@@ -459,6 +459,7 @@ Expression:
     - TypeLiteral
     - DefaultExpression
     - IntervalLiteral
+    - IntervalMultiUnitLiteral
     - IntervalParameter
     - IntervalStringParameter
     - SubqueryExpression
@@ -1610,6 +1611,9 @@ overrides:
   AnyAllOperator: "pair<string, bool>"
   CaseWhenThen:
     type: "CaseCheck"
+    by_value: true
+  IntervalUnitPair:
+    type: "pair<unique_ptr<ParsedExpression>, DatePartSpecifier>"
     by_value: true
   ReplaceEntry:
     type: "pair<string, unique_ptr<ParsedExpression>>"
