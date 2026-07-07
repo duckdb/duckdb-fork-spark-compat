@@ -1839,6 +1839,11 @@ public:
 	                                                                       ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformDescribeQuery(PEGTransformer &transformer, const ShowType &describe_rule,
 	                                                    unique_ptr<SelectStatement> select_statement_internal);
+	static unique_ptr<TransformResultValue> TransformDescribeFunctionInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static unique_ptr<QueryNode> TransformDescribeFunction(PEGTransformer &transformer, const ShowType &describe_rule,
+	                                                       const bool &has_result,
+	                                                       const QualifiedName &function_identifier);
 	static unique_ptr<TransformResultValue> TransformDescribeTableInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule,

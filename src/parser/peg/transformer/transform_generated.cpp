@@ -3828,6 +3828,18 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeQueryIn
 	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeFunctionInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto describe_rule = transformer.Transform<ShowType>(list_pr.GetChild(0));
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto function_identifier = transformer.Transform<QualifiedName>(list_pr.GetChild(3));
+	auto result = TransformDescribeFunction(transformer, describe_rule, has_result, function_identifier);
+	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeTableInternal(PEGTransformer &transformer,
                                                                                        ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -10704,6 +10716,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ShowSelect", &PEGTransformerFactory::TransformShowSelectInternal},
 	    {"ShowAllTables", &PEGTransformerFactory::TransformShowAllTablesInternal},
 	    {"DescribeQuery", &PEGTransformerFactory::TransformDescribeQueryInternal},
+	    {"DescribeFunction", &PEGTransformerFactory::TransformDescribeFunctionInternal},
 	    {"DescribeTable", &PEGTransformerFactory::TransformDescribeTableInternal},
 	    {"ShowQualifiedName", &PEGTransformerFactory::TransformShowQualifiedNameInternal},
 	    {"ShowTables", &PEGTransformerFactory::TransformShowTablesInternal},

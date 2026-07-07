@@ -138,6 +138,7 @@ QueryNode:
     - ShowAllTables
     - ShowQualifiedName
     - DescribeQuery
+    - DescribeFunction
     - DescribeTable
 
 SelectNode:
