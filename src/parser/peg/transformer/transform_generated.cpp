@@ -9776,6 +9776,14 @@ PEGTransformerFactory::TransformSetAssignmentOrTimeZoneInternal(PEGTransformer &
 	return make_uniq<TypedTransformResult<unique_ptr<SetStatement>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformReadSettingStatementInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto set_variable_or_setting = transformer.Transform<SettingInfo>(list_pr.GetChild(1));
+	auto result = TransformReadSettingStatement(transformer, set_variable_or_setting);
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformResetStatementInternal(PEGTransformer &transformer,
                                                                                         ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -11270,6 +11278,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ValuesExpressions", &PEGTransformerFactory::TransformValuesExpressionsInternal},
 	    {"SetStatement", &PEGTransformerFactory::TransformSetStatementInternal},
 	    {"SetAssignmentOrTimeZone", &PEGTransformerFactory::TransformSetAssignmentOrTimeZoneInternal},
+	    {"ReadSettingStatement", &PEGTransformerFactory::TransformReadSettingStatementInternal},
 	    {"ResetStatement", &PEGTransformerFactory::TransformResetStatementInternal},
 	    {"StandardAssignment", &PEGTransformerFactory::TransformStandardAssignmentInternal},
 	    {"SetVariableOrSetting", &PEGTransformerFactory::TransformSetVariableOrSettingInternal},

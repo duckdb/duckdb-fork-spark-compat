@@ -3846,6 +3846,10 @@ public:
 	                                                      unique_ptr<SetStatement> set_assignment_or_time_zone);
 	static unique_ptr<TransformResultValue> TransformSetAssignmentOrTimeZoneInternal(PEGTransformer &transformer,
 	                                                                                 ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformReadSettingStatementInternal(PEGTransformer &transformer,
+	                                                                              ParseResult &parse_result);
+	static unique_ptr<SQLStatement> TransformReadSettingStatement(PEGTransformer &transformer,
+	                                                              const SettingInfo &set_variable_or_setting);
 	static unique_ptr<TransformResultValue> TransformResetStatementInternal(PEGTransformer &transformer,
 	                                                                        ParseResult &parse_result);
 	static unique_ptr<SQLStatement> TransformResetStatement(PEGTransformer &transformer,

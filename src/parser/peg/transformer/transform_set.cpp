@@ -1,7 +1,12 @@
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/expression/cast_expression.hpp"
+#include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/expression/default_expression.hpp"
+#include "duckdb/parser/expression/function_expression.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
+#include "duckdb/parser/query_node/select_node.hpp"
+#include "duckdb/parser/statement/select_statement.hpp"
+#include "duckdb/parser/tableref/emptytableref.hpp"
 
 namespace duckdb_fork {
 using namespace duckdb;
@@ -20,6 +25,21 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformResetStatement(PEGTrans
 		throw NotImplementedException("RESET LOCAL is not implemented.");
 	}
 	return make_uniq<ResetVariableStatement>(set_variable_or_setting.name, set_variable_or_setting.scope);
+}
+
+// ReadSettingStatement <- 'SET' SetVariableOrSetting
+// Spark's value-less SET reads the config value; reroute it into SELECT current_setting('<key>').
+unique_ptr<SQLStatement>
+PEGTransformerFactory::TransformReadSettingStatement(PEGTransformer &transformer,
+                                                     const SettingInfo &set_variable_or_setting) {
+	vector<unique_ptr<ParsedExpression>> children;
+	children.push_back(make_uniq<ConstantExpression>(Value(set_variable_or_setting.name.GetIdentifierName())));
+	auto select_node = make_uniq<SelectNode>();
+	select_node->select_list.push_back(make_uniq<FunctionExpression>(Identifier("current_setting"), std::move(children)));
+	select_node->from_table = make_uniq<EmptyTableRef>();
+	auto select_statement = make_uniq<SelectStatement>();
+	select_statement->node = std::move(select_node);
+	return std::move(select_statement);
 }
 
 // SetAssignment <- VariableAssign VariableList

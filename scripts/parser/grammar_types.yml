@@ -86,6 +86,7 @@ SQLStatement:
     - PragmaAssign
     - PragmaFunction
     - PrepareStatement
+    - ReadSettingStatement
     - ResetStatement
     - SelectStatement
     - SetStatement
