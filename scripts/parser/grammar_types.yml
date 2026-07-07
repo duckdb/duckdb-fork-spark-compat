@@ -502,6 +502,7 @@ Expression:
     - MapParensListType
     - MapAngleBracketsListType
     - ArrayAngleBracketsType
+    - TupleType
     - RowType
     - GeometryType
     - VariantType
@@ -743,11 +744,8 @@ QualifiedName:
     - SchemaReservedTypeName
     - CatalogReservedSchemaTypeName
     - QualifiedName
-    - QualifiedSchemaName
     - QualifiedIndexName
-    - QualifiedSchemaNameString
     - QualifiedIndexNameString
-    - CatalogReservedSchema
     - SchemaReservedIndex
     - CatalogReservedSchemaIndex
     - FunctionIdentifier
@@ -1023,8 +1021,11 @@ String:
     - ILikeToken
     - GlobToken
     - SimilarToToken
+    - RegexMatchToken
+    - RegexInsensitiveMatchToken
     - NotILikeOp
     - NotLikeOp
+    - NotRegexInsensitiveMatchOp
     - NotSimilarToOp
     - QualifiedOperator
     - QualifiedOperatorContents
