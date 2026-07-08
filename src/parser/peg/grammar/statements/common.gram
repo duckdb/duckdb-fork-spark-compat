@@ -10,6 +10,8 @@ Statement <-
 	PragmaStatement /
 	CallStatement /
 	InsertStatement /
+	DeclareStatement /
+	DropVariableStatement /
 	DropStatement /
 	CopyStatement /
 	ExplainStatement /

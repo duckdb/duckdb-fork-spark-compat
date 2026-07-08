@@ -3716,6 +3716,61 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDeallocatePrepa
 	return make_uniq<TypedTransformResult<bool>>(result);
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDeclareStatementInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	optional<bool> or_replace {};
+	auto &or_replace_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (or_replace_opt.HasResult()) {
+		auto or_replace_value = transformer.Transform<bool>(or_replace_opt.GetResult());
+		or_replace = or_replace_value;
+	}
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto identifier = list_pr.GetChild(3).Cast<IdentifierParseResult>().identifier;
+	optional<LogicalType> type {};
+	auto &type_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	if (type_opt.HasResult()) {
+		auto type_value = transformer.Transform<LogicalType>(type_opt.GetResult());
+		type = type_value;
+	}
+	optional<unique_ptr<ParsedExpression>> declare_value {};
+	auto &declare_value_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	if (declare_value_opt.HasResult()) {
+		auto declare_value_value = transformer.Transform<unique_ptr<ParsedExpression>>(declare_value_opt.GetResult());
+		declare_value = std::move(declare_value_value);
+	}
+	auto result =
+	    TransformDeclareStatement(transformer, or_replace, has_result, identifier, type, std::move(declare_value));
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDeclareValueInternal(PEGTransformer &transformer,
+                                                                                      ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto expression = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(1));
+	auto result = std::move(expression);
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformDropVariableStatementInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	optional<bool> if_exists {};
+	auto &if_exists_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
+	if (if_exists_opt.HasResult()) {
+		auto if_exists_value = transformer.Transform<bool>(if_exists_opt.GetResult());
+		if_exists = if_exists_value;
+	}
+	auto identifier = list_pr.GetChild(4).Cast<IdentifierParseResult>().identifier;
+	auto result = TransformDropVariableStatement(transformer, has_result, if_exists, identifier);
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDeleteStatementInternal(PEGTransformer &transformer,
                                                                                          ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -10743,6 +10798,9 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ViewColumn", &PEGTransformerFactory::TransformViewColumnInternal},
 	    {"DeallocateStatement", &PEGTransformerFactory::TransformDeallocateStatementInternal},
 	    {"DeallocatePrepare", &PEGTransformerFactory::TransformDeallocatePrepareInternal},
+	    {"DeclareStatement", &PEGTransformerFactory::TransformDeclareStatementInternal},
+	    {"DeclareValue", &PEGTransformerFactory::TransformDeclareValueInternal},
+	    {"DropVariableStatement", &PEGTransformerFactory::TransformDropVariableStatementInternal},
 	    {"DeleteStatement", &PEGTransformerFactory::TransformDeleteStatementInternal},
 	    {"TruncateStatement", &PEGTransformerFactory::TransformTruncateStatementInternal},
 	    {"TargetOptAlias", &PEGTransformerFactory::TransformTargetOptAliasInternal},

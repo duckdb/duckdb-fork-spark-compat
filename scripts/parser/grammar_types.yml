@@ -65,11 +65,13 @@ SQLStatement:
     - CopyTable
     - CreateStatement
     - DeallocateStatement
+    - DeclareStatement
     - DeleteStatement
     - TruncateStatement
     - DetachStatement
     - DisconnectStatement
     - DropStatement
+    - DropVariableStatement
     - ExecuteStatement
     - ExplainStatement
     - ExplainableStatements
@@ -532,6 +534,7 @@ Expression:
     - RelOptionArgumentOpt
     - ExpressionAlias
     - PartitionSpecValue
+    - DeclareValue
 
 ColumnRefExpression:
   type: "unique_ptr<ColumnRefExpression>"

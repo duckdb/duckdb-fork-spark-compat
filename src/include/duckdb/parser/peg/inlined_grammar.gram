@@ -10,6 +10,8 @@ Statement <-
 	PragmaStatement /
 	CallStatement /
 	InsertStatement /
+	DeclareStatement /
+	DropVariableStatement /
 	DropStatement /
 	CopyStatement /
 	ExplainStatement /
@@ -1707,6 +1709,12 @@ SetAssignment <- VariableAssign VariableList
 VariableAssign <- '=' / 'TO'
 VariableList <- List(Expression)
 
+
+# Spark session variables. DECLARE maps to duckdb SET VARIABLE, DROP ... VARIABLE maps to RESET VARIABLE.
+DeclareStatement <- 'DECLARE' OrReplace? 'VARIABLE'? Identifier Type? DeclareValue?
+DeclareValue <- ('DEFAULT' / '=') Expression
+
+DropVariableStatement <- 'DROP' ('TEMPORARY' / 'TEMP')? 'VARIABLE' IfExists? Identifier
 
 ExportStatement <- 'EXPORT' 'DATABASE' ExportSource? StringLiteral GenericCopyOptionList?
 ExportSource <- CatalogName 'TO'

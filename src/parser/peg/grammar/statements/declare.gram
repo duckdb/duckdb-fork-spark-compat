@@ -1,0 +1,5 @@
+# Spark session variables. DECLARE maps to duckdb SET VARIABLE, DROP ... VARIABLE maps to RESET VARIABLE.
+DeclareStatement <- 'DECLARE' OrReplace? 'VARIABLE'? Identifier Type? DeclareValue?
+DeclareValue <- ('DEFAULT' / '=') Expression
+
+DropVariableStatement <- 'DROP' ('TEMPORARY' / 'TEMP')? 'VARIABLE' IfExists? Identifier

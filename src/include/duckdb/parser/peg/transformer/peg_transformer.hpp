@@ -1802,6 +1802,20 @@ public:
 	static unique_ptr<TransformResultValue> TransformDeallocatePrepareInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static bool TransformDeallocatePrepare(PEGTransformer &transformer);
+	static unique_ptr<TransformResultValue> TransformDeclareStatementInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static unique_ptr<SQLStatement> TransformDeclareStatement(PEGTransformer &transformer,
+	                                                          const optional<bool> &or_replace, const bool &has_result,
+	                                                          const Identifier &identifier,
+	                                                          const optional<LogicalType> &type,
+	                                                          optional<unique_ptr<ParsedExpression>> declare_value);
+	static unique_ptr<TransformResultValue> TransformDeclareValueInternal(PEGTransformer &transformer,
+	                                                                      ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformDropVariableStatementInternal(PEGTransformer &transformer,
+	                                                                               ParseResult &parse_result);
+	static unique_ptr<SQLStatement> TransformDropVariableStatement(PEGTransformer &transformer, const bool &has_result,
+	                                                               const optional<bool> &if_exists,
+	                                                               const Identifier &identifier);
 	static unique_ptr<TransformResultValue> TransformDeleteStatementInternal(PEGTransformer &transformer,
 	                                                                         ParseResult &parse_result);
 	static unique_ptr<SQLStatement>
