@@ -1407,9 +1407,9 @@ bool PEGTransformerFactory::TransformSubqueryAll(PEGTransformer &transformer) {
 
 unique_ptr<ParsedExpression>
 PEGTransformerFactory::TransformBitwiseExpression(PEGTransformer &transformer,
-                                                  unique_ptr<ParsedExpression> additive_expression,
+                                                  unique_ptr<ParsedExpression> bitwise_and_expression,
                                                   optional<vector<BinaryExpressionTail>> bitwise_expression_tail) {
-	auto expr = std::move(additive_expression);
+	auto expr = std::move(bitwise_and_expression);
 	if (!bitwise_expression_tail) {
 		return expr;
 	}
@@ -1419,6 +1419,45 @@ PEGTransformerFactory::TransformBitwiseExpression(PEGTransformer &transformer,
 		bit_children.push_back(std::move(expr));
 		bit_children.push_back(std::move(bit_expr.expression));
 		auto func_expr = make_uniq<FunctionExpression>(Identifier(std::move(bit_expr.op)), std::move(bit_children));
+		func_expr->IsOperatorMutable() = true;
+		expr = std::move(func_expr);
+	}
+	return expr;
+}
+
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformBitwiseAndExpression(
+    PEGTransformer &transformer, unique_ptr<ParsedExpression> shift_expression,
+    optional<vector<BinaryExpressionTail>> bitwise_and_expression_tail) {
+	auto expr = std::move(shift_expression);
+	if (!bitwise_and_expression_tail) {
+		return expr;
+	}
+	auto and_depth_guard = transformer.StackCheck(bitwise_and_expression_tail->size());
+	for (auto &and_expr : *bitwise_and_expression_tail) {
+		vector<unique_ptr<ParsedExpression>> and_children;
+		and_children.push_back(std::move(expr));
+		and_children.push_back(std::move(and_expr.expression));
+		auto func_expr = make_uniq<FunctionExpression>(Identifier(std::move(and_expr.op)), std::move(and_children));
+		func_expr->IsOperatorMutable() = true;
+		expr = std::move(func_expr);
+	}
+	return expr;
+}
+
+unique_ptr<ParsedExpression>
+PEGTransformerFactory::TransformShiftExpression(PEGTransformer &transformer,
+                                                unique_ptr<ParsedExpression> additive_expression,
+                                                optional<vector<BinaryExpressionTail>> shift_expression_tail) {
+	auto expr = std::move(additive_expression);
+	if (!shift_expression_tail) {
+		return expr;
+	}
+	auto shift_depth_guard = transformer.StackCheck(shift_expression_tail->size());
+	for (auto &shift_expr : *shift_expression_tail) {
+		vector<unique_ptr<ParsedExpression>> shift_children;
+		shift_children.push_back(std::move(expr));
+		shift_children.push_back(std::move(shift_expr.expression));
+		auto func_expr = make_uniq<FunctionExpression>(Identifier(std::move(shift_expr.op)), std::move(shift_children));
 		func_expr->IsOperatorMutable() = true;
 		expr = std::move(func_expr);
 	}
@@ -1509,9 +1548,20 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformExponentiationExpre
 }
 
 BinaryExpressionTail
-PEGTransformerFactory::TransformBitwiseExpressionTail(PEGTransformer &transformer, const string &bit_operator,
-                                                      unique_ptr<ParsedExpression> additive_expression) {
-	return {bit_operator, std::move(additive_expression), optional_idx()};
+PEGTransformerFactory::TransformBitwiseExpressionTail(PEGTransformer &transformer, const string &bitwise_or_operator,
+                                                      unique_ptr<ParsedExpression> bitwise_and_expression) {
+	return {bitwise_or_operator, std::move(bitwise_and_expression), optional_idx()};
+}
+
+BinaryExpressionTail PEGTransformerFactory::TransformBitwiseAndExpressionTail(
+    PEGTransformer &transformer, const string &bitwise_and_operator, unique_ptr<ParsedExpression> shift_expression) {
+	return {bitwise_and_operator, std::move(shift_expression), optional_idx()};
+}
+
+BinaryExpressionTail
+PEGTransformerFactory::TransformShiftExpressionTail(PEGTransformer &transformer, const string &shift_operator,
+                                                    unique_ptr<ParsedExpression> additive_expression) {
+	return {shift_operator, std::move(additive_expression), optional_idx()};
 }
 
 BinaryExpressionTail

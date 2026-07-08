@@ -245,37 +245,45 @@ StringOperator <- '^@' / '||'
 QualifiedOperator <- 'OPERATOR' Parens(QualifiedOperatorContents)
 QualifiedOperatorContents <- ColIdDot* AnyOp
 AnyOp <- '!~~*' / '>>=' / '<<=' / '->>' / '!~~' / '!~*' / '~~*' / '~~~' / '~*' / '!~' / '^@' / '||' / '&&' / '@>' / '<@' / '<=' / '>=' / '<>' / '!=' / '==' / '<<' / '>>' / '//' / '**' / '->' / '~~' / '+' / '-' / '*' / '/' / '%' / '^' / '<' / '>' / '=' / '&' / '|' / '~' / '!'
-# LEVEL 9
-BitwiseExpression <- AdditiveExpression BitwiseExpressionTail*
-BitwiseExpressionTail <- BitOperator AdditiveExpression
-BitOperator <- '&' / '|' / '<<' / '>>'
-# LEVEL 10
+# LEVEL 9 (bitwise OR - loosest of the three bitwise tiers)
+BitwiseExpression <- BitwiseAndExpression BitwiseExpressionTail*
+BitwiseExpressionTail <- BitwiseOrOperator BitwiseAndExpression
+BitwiseOrOperator <- '|'
+# LEVEL 10 (bitwise AND)
+BitwiseAndExpression <- ShiftExpression BitwiseAndExpressionTail*
+BitwiseAndExpressionTail <- BitwiseAndOperator ShiftExpression
+BitwiseAndOperator <- '&'
+# LEVEL 11 (shift - tighter than & and |, matching Spark's valueExpression precedence)
+ShiftExpression <- AdditiveExpression ShiftExpressionTail*
+ShiftExpressionTail <- ShiftOperator AdditiveExpression
+ShiftOperator <- '<<' / '>>'
+# LEVEL 12
 AdditiveExpression <- MultiplicativeExpression AdditiveExpressionTail*
 AdditiveExpressionTail <- Term MultiplicativeExpression
 Term <- '+' / '-'
-# LEVEL 11
+# LEVEL 13
 MultiplicativeExpression <- ExponentiationExpression MultiplicativeExpressionTail*
 MultiplicativeExpressionTail <- Factor ExponentiationExpression
 Factor <- '*' / '/' / '//' / '%' / 'DIV'
-# LEVEL 12
+# LEVEL 14
 ExponentiationExpression <- CollateExpression ExponentiationExpressionTail*
 ExponentiationExpressionTail <- ExponentOperator CollateExpression
 ExponentOperator <- '^' / '**'
-# LEVEL 13
+# LEVEL 15
 CollateExpression <- AtTimeZoneExpression CollateExpressionTail*
 CollateExpressionTail <- CollateOperator AtTimeZoneExpression
 CollateOperator <- 'COLLATE'
-# LEVEL 14
+# LEVEL 16
 AtTimeZoneExpression <- PrefixExpression AtTimeZoneExpressionTail*
 AtTimeZoneExpressionTail <- AtTimeZoneOperator PrefixExpression
 AtTimeZoneOperator <- 'AT' 'TIME' 'ZONE'
-# LEVEL 15
+# LEVEL 17
 PrefixExpression <- PrefixOperator* BaseExpression
 PrefixOperator <- QualifiedOperator / MinusPrefixOperator / PlusPrefixOperator / TildePrefixOperator
 MinusPrefixOperator <- '-'
 PlusPrefixOperator <- '+'
 TildePrefixOperator <- '~'
-# LEVEL 16 (Highest)
+# LEVEL 18 (Highest)
 BaseExpression <- SingleExpression IndirectionList?
 IndirectionList <- Indirection+
 

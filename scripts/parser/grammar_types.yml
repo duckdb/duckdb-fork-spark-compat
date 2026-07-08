@@ -391,6 +391,8 @@ Expression:
     - EscapeClause
     - OtherOperatorExpression
     - BitwiseExpression
+    - BitwiseAndExpression
+    - ShiftExpression
     - AdditiveExpression
     - MultiplicativeExpression
     - ExponentiationExpression
@@ -1042,7 +1044,9 @@ String:
     - JsonOperator
     - InetOperator
     - ListOperator
-    - BitOperator
+    - BitwiseOrOperator
+    - BitwiseAndOperator
+    - ShiftOperator
     - Term
     - Factor
     - ExponentOperator
@@ -1562,6 +1566,8 @@ BinaryExpressionTail:
   by_value: true
   rules:
     - BitwiseExpressionTail
+    - BitwiseAndExpressionTail
+    - ShiftExpressionTail
     - MultiplicativeExpressionTail
     - ExponentiationExpressionTail
 
