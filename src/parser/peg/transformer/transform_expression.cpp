@@ -155,6 +155,25 @@ Identifier PEGTransformerFactory::TransformReservedTableQualification(PEGTransfo
 	return reserved_table_name;
 }
 
+// Maps a Spark ordered-set aggregate (used with WITHIN GROUP) to its DuckDB name and validates the
+// argument count. Throws for any function that is not a supported ordered-set aggregate.
+static string MapOrderedSetAggregateName(const string &lowercase_name, idx_t argument_count,
+                                         const QualifiedName &qualified_function) {
+	if (lowercase_name == "percentile_cont" || lowercase_name == "percentile_disc") {
+		if (argument_count != 1) {
+			throw ParserException("Wrong number of arguments for %s", StringUtil::Upper(lowercase_name));
+		}
+		return lowercase_name == "percentile_cont" ? "quantile_cont" : "quantile_disc";
+	}
+	if (lowercase_name == "mode") {
+		if (argument_count != 0) {
+			throw ParserException("Wrong number of arguments for MODE");
+		}
+		return "mode";
+	}
+	throw ParserException("Unknown ordered aggregate \"%s\".", qualified_function.Name());
+}
+
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
     PEGTransformer &transformer, const QualifiedName &function_identifier,
     MethodArguments function_expression_arguments, optional<vector<OrderByNode>> within_group_clause,
@@ -190,6 +209,35 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 
 		if (export_clause) {
 			throw ParserException("EXPORT_STATE is not supported for window functions!");
+		}
+
+		// Ordered-set aggregates used as window functions: rewrite the Spark form
+		//   percentile_cont(p) WITHIN GROUP (ORDER BY v) OVER (...)
+		// into DuckDB's native windowed form quantile_cont(v, p) OVER (...). DESC is encoded by negating
+		// the fraction, matching the aggregate binder's NegatePercentileValue.
+		if (within_group_clause) {
+			auto order_by_clause = std::move(*within_group_clause);
+			if (distinct) {
+				throw ParserException("DISTINCT is not allowed in combination with WITHIN GROUP");
+			}
+			if (!order_modifier->orders.empty()) {
+				throw ParserException("Cannot use multiple ORDER BY statements with WITHIN GROUP");
+			}
+			if (order_by_clause.size() != 1) {
+				throw ParserException("Cannot use multiple ORDER BY clauses with WITHIN GROUP");
+			}
+			lowercase_name = MapOrderedSetAggregateName(lowercase_name, function_children.size(), qualified_function);
+			auto &order_node = order_by_clause[0];
+			// Descending WITHIN GROUP is encoded by negating the percentile fraction, matching the
+			// aggregate binder's NegatePercentileValue.
+			if ((lowercase_name == "quantile_cont" || lowercase_name == "quantile_disc") &&
+			    order_node.type == OrderType::DESCENDING) {
+				vector<unique_ptr<ParsedExpression>> negate_children;
+				negate_children.push_back(std::move(function_children[0].GetExpressionMutable()));
+				function_children[0].GetExpressionMutable() =
+				    make_uniq<FunctionExpression>(Identifier("-"), std::move(negate_children));
+			}
+			function_children.insert(function_children.begin(), std::move(order_node.expression));
 		}
 
 		transformer.in_window_definition = true;
@@ -308,24 +356,7 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 		if (order_modifier->orders.size() != 1) {
 			throw ParserException("Cannot use multiple ORDER BY clauses with WITHIN GROUP");
 		}
-		if (lowercase_name == "percentile_cont") {
-			if (function_children.size() != 1) {
-				throw ParserException("Wrong number of arguments for PERCENTILE_CONT");
-			}
-			lowercase_name = "quantile_cont";
-		} else if (lowercase_name == "percentile_disc") {
-			if (function_children.size() != 1) {
-				throw ParserException("Wrong number of arguments for PERCENTILE_DISC");
-			}
-			lowercase_name = "quantile_disc";
-		} else if (lowercase_name == "mode") {
-			if (!function_children.empty()) {
-				throw ParserException("Wrong number of arguments for MODE");
-			}
-			lowercase_name = "mode";
-		} else {
-			throw ParserException("Unknown ordered aggregate \"%s\".", qualified_function.Name());
-		}
+		lowercase_name = MapOrderedSetAggregateName(lowercase_name, function_children.size(), qualified_function);
 	}
 	auto result = make_uniq<FunctionExpression>(
 	    QualifiedName(qualified_function.Catalog(), qualified_function.Schema(), Identifier(lowercase_name)),
