@@ -812,6 +812,15 @@ public:
 			return MatchResultType::FAIL;
 		}
 		state.tokens[state.token_index - 1].type = TokenType::STRING_LITERAL;
+		// String literal continuation: adjacent plain string literals are concatenated (e.g. 'a' 'b' -> 'ab').
+		if (string_info.type == SpecialStringCharacter::STANDARD) {
+			while (state.token_index < state.tokens.size() &&
+			       IsStandardStringToken(state.tokens[state.token_index].text)) {
+				state.tokens[state.token_index].type = TokenType::STRING_LITERAL;
+				state.token_index++;
+				state.UpdateMaxTokenIndex();
+			}
+		}
 		return MatchResultType::SUCCESS;
 	}
 
@@ -849,6 +858,18 @@ public:
 			effective_type = SpecialStringCharacter::ESCAPE_STRING;
 		}
 
+		// String literal continuation: adjacent plain string literals are concatenated (e.g. 'a' 'b' -> 'ab').
+		if (string_info.type == SpecialStringCharacter::STANDARD) {
+			while (state.token_index < state.tokens.size() &&
+			       IsStandardStringToken(state.tokens[state.token_index].text)) {
+				auto &next_token = state.tokens[state.token_index];
+				stripped_string += StripStandardStringToken(next_token.text);
+				next_token.type = TokenType::STRING_LITERAL;
+				state.token_index++;
+				state.UpdateMaxTokenIndex();
+			}
+		}
+
 		auto result = state.allocator.Allocate(
 		    make_uniq<StringLiteralParseResult>(stripped_string, effective_type, start_offset));
 		result->name = name;
@@ -880,6 +901,26 @@ private:
 			return true;
 		}
 		return false;
+	}
+
+	//! A plain (unprefixed) single- or double-quoted string literal token, eligible for continuation.
+	static bool IsStandardStringToken(const string &text) {
+		if (text.size() < 2) {
+			return false;
+		}
+		auto info = GetSpecialStringInfo(text);
+		if (info.type != SpecialStringCharacter::STANDARD) {
+			return false;
+		}
+		char open_quote = text[info.prefix_len - 1];
+		char close_quote = text.back();
+		return (open_quote == '\'' && close_quote == '\'') || (open_quote == '"' && close_quote == '"');
+	}
+
+	//! Strip the surrounding quotes of a plain string literal token, collapsing doubled quotes.
+	static string StripStandardStringToken(const string &text) {
+		string stripped = text.substr(1, text.size() - 2);
+		return StringUtil::Replace(stripped, "''", "'");
 	}
 };
 
