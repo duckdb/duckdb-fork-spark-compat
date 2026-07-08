@@ -3905,11 +3905,15 @@ public:
 	                                                                        ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformZoneIdentifier(PEGTransformer &transformer,
 	                                                            const Identifier &identifier);
-	static unique_ptr<TransformResultValue> TransformZoneIntervalWithIntervalInternal(PEGTransformer &transformer,
-	                                                                                  ParseResult &parse_result);
-	static unique_ptr<ParsedExpression> TransformZoneIntervalWithInterval(PEGTransformer &transformer,
-	                                                                      const string &string_literal,
-	                                                                      const optional<DatePartSpecifier> &interval);
+	static unique_ptr<TransformResultValue> TransformZoneIntervalRangeInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static unique_ptr<ParsedExpression>
+	TransformZoneIntervalRange(PEGTransformer &transformer, const string &string_literal,
+	                           const DatePartSpecifier &interval_to_interval_as_type);
+	static unique_ptr<TransformResultValue> TransformZoneIntervalLiteralInternal(PEGTransformer &transformer,
+	                                                                             ParseResult &parse_result);
+	static unique_ptr<ParsedExpression> TransformZoneIntervalLiteral(PEGTransformer &transformer,
+	                                                                 unique_ptr<ParsedExpression> interval_literal);
 	static unique_ptr<TransformResultValue> TransformZoneIntervalWithPrecisionInternal(PEGTransformer &transformer,
 	                                                                                   ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformZoneIntervalWithPrecision(PEGTransformer &transformer,

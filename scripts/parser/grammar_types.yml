@@ -481,7 +481,8 @@ Expression:
     - SampleValue
     - PivotHeader
     - ZoneValue
-    - ZoneIntervalWithInterval
+    - ZoneIntervalRange
+    - ZoneIntervalLiteral
     - ZoneIntervalWithPrecision
     - ZoneLocal
     - ZoneDefault

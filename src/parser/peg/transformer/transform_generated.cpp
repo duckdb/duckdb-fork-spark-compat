@@ -9935,18 +9935,20 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformZoneIdentifierI
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
-unique_ptr<TransformResultValue>
-PEGTransformerFactory::TransformZoneIntervalWithIntervalInternal(PEGTransformer &transformer,
-                                                                 ParseResult &parse_result) {
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformZoneIntervalRangeInternal(PEGTransformer &transformer,
+                                                                                           ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
 	auto string_literal = transformer.Transform<string>(list_pr.GetChild(1));
-	optional<DatePartSpecifier> interval {};
-	auto &interval_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
-	if (interval_opt.HasResult()) {
-		auto interval_value = transformer.Transform<DatePartSpecifier>(interval_opt.GetResult());
-		interval = interval_value;
-	}
-	auto result = TransformZoneIntervalWithInterval(transformer, string_literal, interval);
+	auto interval_to_interval_as_type = transformer.Transform<DatePartSpecifier>(list_pr.GetChild(2));
+	auto result = TransformZoneIntervalRange(transformer, string_literal, interval_to_interval_as_type);
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformZoneIntervalLiteralInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto interval_literal = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(0));
+	auto result = TransformZoneIntervalLiteral(transformer, std::move(interval_literal));
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
@@ -11375,7 +11377,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ZoneDefault", &PEGTransformerFactory::TransformZoneDefaultInternal},
 	    {"ZoneStringLiteral", &PEGTransformerFactory::TransformZoneStringLiteralInternal},
 	    {"ZoneIdentifier", &PEGTransformerFactory::TransformZoneIdentifierInternal},
-	    {"ZoneIntervalWithInterval", &PEGTransformerFactory::TransformZoneIntervalWithIntervalInternal},
+	    {"ZoneIntervalRange", &PEGTransformerFactory::TransformZoneIntervalRangeInternal},
+	    {"ZoneIntervalLiteral", &PEGTransformerFactory::TransformZoneIntervalLiteralInternal},
 	    {"ZoneIntervalWithPrecision", &PEGTransformerFactory::TransformZoneIntervalWithPrecisionInternal},
 	    {"DottedSettingIdentifier", &PEGTransformerFactory::TransformDottedSettingIdentifierInternal},
 	    {"SetVariable", &PEGTransformerFactory::TransformSetVariableInternal},
