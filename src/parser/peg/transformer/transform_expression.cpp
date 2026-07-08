@@ -358,6 +358,15 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 		}
 		lowercase_name = MapOrderedSetAggregateName(lowercase_name, function_children.size(), qualified_function);
 	}
+	if (lowercase_name == "transform" && function_children.size() == 2) {
+		auto &lambda_arg = function_children[1].GetExpressionMutable();
+		if (lambda_arg->GetExpressionClass() != ExpressionClass::LAMBDA) {
+			// Spark implicitly wraps a non-lambda 2nd argument in an identity lambda that ignores
+			// its parameter, e.g. `transform(ys, 0)` behaves like `transform(ys, x -> 0)`.
+			lambda_arg =
+			    make_uniq<LambdaExpression>(vector<string> {"__spark_transform_hidden_arg"}, std::move(lambda_arg));
+		}
+	}
 	auto result = make_uniq<FunctionExpression>(
 	    QualifiedName(qualified_function.Catalog(), qualified_function.Schema(), Identifier(lowercase_name)),
 	    std::move(function_children), std::move(filter_expr), std::move(order_modifier), distinct, false,
