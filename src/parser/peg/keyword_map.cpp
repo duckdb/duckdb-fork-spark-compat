@@ -69,6 +69,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	reserved_keyword_map.insert("select");
 	reserved_keyword_map.insert("show");
 	reserved_keyword_map.insert("some");
+	reserved_keyword_map.insert("sort");
 	reserved_keyword_map.insert("summarize");
 	reserved_keyword_map.insert("symmetric");
 	reserved_keyword_map.insert("table");
