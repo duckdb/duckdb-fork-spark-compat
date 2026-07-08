@@ -149,7 +149,7 @@ struct MatchState {
 	}
 	MatchState(MatchState &state)
 	    : tokens(state.tokens), suggestions(state.suggestions), token_index(state.token_index),
-	      allocator(state.allocator), max_token_index(state.max_token_index),
+	      partial_gt(state.partial_gt), allocator(state.allocator), max_token_index(state.max_token_index),
 	      preserve_identifier_case(state.preserve_identifier_case) {
 	}
 
@@ -157,9 +157,17 @@ struct MatchState {
 	vector<MatcherSuggestion> &suggestions;
 	reference_set_t<const Matcher> added_suggestions;
 	idx_t token_index;
+	//! leading '>' chars already consumed from a '>'-run token (nested type closers, e.g. array<array<int>>)
+	idx_t partial_gt = 0;
 	ParseResultAllocator &allocator;
 	idx_t &max_token_index;
 	bool preserve_identifier_case = true;
+
+	//! adopt a child state's parse position (token index + partial '>'-run progress)
+	void SyncPosition(const MatchState &child) {
+		token_index = child.token_index;
+		partial_gt = child.partial_gt;
+	}
 
 	void UpdateMaxTokenIndex() {
 		if (token_index > max_token_index) {

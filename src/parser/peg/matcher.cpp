@@ -146,7 +146,7 @@ public:
 						break;
 					}
 				}
-				state.token_index = list_state.token_index;
+				state.SyncPosition(list_state);
 				if (child_idx == matchers.size()) {
 					// we managed to provide suggestions for all tokens
 					// that means all other tokens were optional - i.e. we succeeded in matching them
@@ -165,7 +165,7 @@ public:
 			}
 		}
 		// we matched all child matchers - propagate token index upward
-		state.token_index = list_state.token_index;
+		state.SyncPosition(list_state);
 		if (suppress_suggestions) {
 			// discard suggestions from child matchers that were added during matching
 			state.suggestions.erase(state.suggestions.begin() + NumericCast<int64_t>(saved_suggestion_size),
@@ -189,7 +189,7 @@ public:
 			}
 			results.push_back(*child_result);
 		}
-		state.token_index = list_state.token_index;
+		state.SyncPosition(list_state);
 		// Empty name implies it's a subrule, e.g. 'SET'i (StandardAssignment / SetTimeZone)
 		return state.allocator.Allocate(make_uniq<ListParseResult>(std::move(results), name, start_offset));
 	}
@@ -242,7 +242,7 @@ public:
 			return MatchResultType::SUCCESS;
 		}
 		// propagate the child state upwards
-		state.token_index = child_state.token_index;
+		state.SyncPosition(child_state);
 		return MatchResultType::SUCCESS;
 	}
 
@@ -258,7 +258,7 @@ public:
 			return state.allocator.Allocate(make_uniq<OptionalParseResult>());
 		}
 		// propagate the child state upwards
-		state.token_index = child_state.token_index;
+		state.SyncPosition(child_state);
 		return state.allocator.Allocate(make_uniq<OptionalParseResult>(child_match, start_offset));
 	}
 
@@ -291,7 +291,7 @@ public:
 			auto child_result = child_matcher.get().Match(choice_state);
 			if (child_result != MatchResultType::FAIL) {
 				// we matched this child - propagate upwards
-				state.token_index = choice_state.token_index;
+				state.SyncPosition(choice_state);
 				return child_result;
 			}
 		}
@@ -308,7 +308,7 @@ public:
 			auto child_result = matchers[i].get().MatchParseResult(choice_state);
 			if (child_result != nullptr) {
 				// we matched this child - propagate upwards
-				state.token_index = choice_state.token_index;
+				state.SyncPosition(choice_state);
 				auto result = state.allocator.Allocate(make_uniq<ChoiceParseResult>(*child_result, i, start_offset));
 				return result;
 			}
@@ -359,7 +359,7 @@ public:
 		// now we can keep on repeating the matching (optionally)
 		while (true) {
 			// update the token index we propagate upwards
-			state.token_index = repeat_state.token_index;
+			state.SyncPosition(repeat_state);
 
 			bool at_autocomplete_cursor =
 			    repeat_state.token_index < state.tokens.size() &&
@@ -399,7 +399,7 @@ public:
 		// Now, we continue matching the element as many times as possible.
 		while (true) {
 			// Propagate the new state upwards.
-			state.token_index = repeat_state.token_index;
+			state.SyncPosition(repeat_state);
 
 			if (repeat_state.token_index < state.tokens.size() &&
 			    state.tokens[repeat_state.token_index].type == TokenType::END_OF_INPUT_AUTOCOMPLETE) {
@@ -1166,6 +1166,78 @@ private:
 	}
 };
 
+//! Matches a single '>' closing an angle-bracket type. A run of '>' (e.g. '>>' / '>>>') is
+//! tokenized as one operator token; this consumes one '>' at a time from such a run so adjacent
+//! closers in nested types (array<array<int>>) resolve without requiring a space between them.
+class CloseAngleBracketMatcher : public Matcher {
+public:
+	static constexpr MatcherType TYPE = MatcherType::KEYWORD;
+
+public:
+	CloseAngleBracketMatcher() : Matcher(TYPE) {
+	}
+
+	MatchResultType Match(MatchState &state) const override {
+		if (!MatchClose(state)) {
+			return MatchResultType::FAIL;
+		}
+		return MatchResultType::SUCCESS;
+	}
+
+	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+		if (state.token_index >= state.tokens.size()) {
+			return nullptr;
+		}
+		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
+		if (!MatchClose(state)) {
+			return nullptr;
+		}
+		return state.allocator.Allocate(make_uniq<KeywordParseResult>(">", start_offset));
+	}
+
+	SuggestionType AddSuggestionInternal(MatchState &state) const override {
+		AutoCompleteCandidate candidate(">", SuggestionState::SUGGEST_KEYWORD, 0, CandidateType::KEYWORD);
+		state.AddSuggestion(MatcherSuggestion(std::move(candidate)));
+		return SuggestionType::MANDATORY;
+	}
+
+	string ToString() const override {
+		return "'>'";
+	}
+
+private:
+	//! true if the token is a non-empty run consisting solely of '>'
+	static bool IsGreaterRun(const string &text) {
+		if (text.empty()) {
+			return false;
+		}
+		for (auto &c : text) {
+			if (c != '>') {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static bool MatchClose(MatchState &state) {
+		if (state.token_index >= state.tokens.size()) {
+			return false;
+		}
+		auto &token = state.tokens[state.token_index];
+		if (!IsGreaterRun(token.text)) {
+			return false;
+		}
+		// consume one '>' from the run; only advance past the token once the run is exhausted
+		state.partial_gt++;
+		if (state.partial_gt >= token.text.size()) {
+			state.partial_gt = 0;
+			state.token_index++;
+			state.UpdateMaxTokenIndex();
+		}
+		return true;
+	}
+};
+
 Matcher &MatcherAllocator::Allocate(unique_ptr<Matcher> matcher) {
 	auto &result = *matcher;
 	matchers.push_back(std::move(matcher));
@@ -1575,6 +1647,7 @@ Matcher &MatcherFactory::CreateMatcher(const char *grammar, const char *root_rul
 	AddRuleOverride("NumberLiteral", allocator.Allocate(make_uniq<NumberLiteralMatcher>()));
 	AddRuleOverride("StringLiteral", allocator.Allocate(make_uniq<StringLiteralMatcher>()));
 	AddRuleOverride("OperatorLiteral", allocator.Allocate(make_uniq<OperatorMatcher>()));
+	AddRuleOverride("CloseAngleBracket", allocator.Allocate(make_uniq<CloseAngleBracketMatcher>()));
 	//===--------------------------------------------------------------------===//
 	// END GENERATED RULE OVERRIDES
 	//===--------------------------------------------------------------------===//

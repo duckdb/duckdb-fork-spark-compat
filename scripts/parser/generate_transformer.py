@@ -1195,6 +1195,8 @@ def _matcher_override_expr(rule_name, override):
         return "allocator.Allocate(make_uniq<StringLiteralMatcher>())"
     if matcher == "operator":
         return "allocator.Allocate(make_uniq<OperatorMatcher>())"
+    if matcher == "close_angle_bracket":
+        return "allocator.Allocate(make_uniq<CloseAngleBracketMatcher>())"
     raise RuntimeError(f"Unsupported matcher_rule_overrides entry for {rule_name}: {override}")
 
 

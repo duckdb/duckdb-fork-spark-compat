@@ -201,7 +201,10 @@ PartitionSpecValue <- '=' Expression
 %whitespace <- [ \t\n\r]*
 List(D) <- D (',' D)* ','?
 Parens(D) <- '(' D ')'
-AngleBrackets(D) <- '<' D '>'
+AngleBrackets(D) <- '<' D CloseAngleBracket
+# Closes an angle-bracket type. Overridden in matcher.cpp to split a '>'-run token
+# (e.g. '>>' in array<array<int>>) into one '>' per nesting level.
+CloseAngleBracket <- '>'
 
 UnreservedKeyword <- 'ABORT' /
 'ABSOLUTE' /
