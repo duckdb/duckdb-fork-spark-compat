@@ -439,6 +439,11 @@ bool BaseTokenizer::TokenizeInputInternal() {
 			}
 			break;
 		case TokenizeState::STRING_LITERAL:
+			if (c == '\\' && i + 1 < sql.size()) {
+				// a backslash escapes the next character, so an escaped quote does not close the string
+				i++;
+				break;
+			}
 			if (c == '\'') {
 				if (i + 1 < sql.size() && sql[i + 1] == '\'') {
 					// escaped - skip escape
