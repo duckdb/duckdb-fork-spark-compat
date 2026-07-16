@@ -6239,7 +6239,8 @@ public:
 	static unique_ptr<QueryNode> TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule,
 	                                                    const bool &has_result, const bool &has_result_1,
 	                                                    DescribeTarget describe_target,
-	                                                    optional<vector<PartitionSpecEntry>> partition_spec);
+	                                                    optional<vector<PartitionSpecEntry>> partition_spec,
+	                                                    const optional<vector<string>> &dotted_identifier);
 	static unique_ptr<TransformResultValue> TransformShowQualifiedNameInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformShowQualifiedName(PEGTransformer &transformer,

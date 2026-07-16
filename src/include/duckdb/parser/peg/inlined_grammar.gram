@@ -1146,9 +1146,11 @@ DescribeQuery <- DescribeRule 'QUERY' SelectStatementInternal
 # Spark's { DESC | DESCRIBE } FUNCTION [EXTENDED] <name>. Must precede DescribeTable, otherwise DescribeTable
 # consumes FUNCTION as a table name. Routed to spark_describe_function[_extended] by the transformer.
 DescribeFunction <- DescribeRule 'FUNCTION' 'EXTENDED'? FunctionIdentifier
-# Spark's { DESC | DESCRIBE } [TABLE] [EXTENDED | FORMATTED] <table>. Ordered after ShowAllTables (so
+# Spark's { DESC | DESCRIBE } [TABLE] [EXTENDED | FORMATTED] <table> [<column>]. Ordered after ShowAllTables (so
 # DESCRIBE ALL TABLES wins) and before ShowSelect (so DESCRIBE TABLE t1 is not parsed as the TABLE t1 select).
-DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget PartitionSpec?
+# The trailing DottedIdentifier is Spark's describeColName (a possibly nested column path): it describes that one
+# column instead of the table, and is routed to spark_describe_column[_extended] by the transformer.
+DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget PartitionSpec? DottedIdentifier?
 ShowQualifiedName <- ShowOrDescribeOrSummarize DescribeTarget?
 ShowTables <- ShowOrDescribe 'TABLES' 'FROM' QualifiedName
 DescribeTarget <- DescribeBaseTableName / DescribeStringLiteral

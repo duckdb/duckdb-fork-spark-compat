@@ -11726,7 +11726,12 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeDescribeFunction
 void PEGTransformerFactory::InitializeDescribeTableTrampoline(PEGTransformer &transformer, TransformStack &stack,
                                                               TransformStackFrame &frame) {
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
-	frame.ReserveChildSlots(3);
+	frame.ReserveChildSlots(4);
+	auto &dotted_identifier_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	if (dotted_identifier_opt.HasResult()) {
+		stack.PushFrame(dotted_identifier_opt.GetResult(), DOTTED_IDENTIFIER_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 3));
+	}
 	auto &partition_spec_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
 	if (partition_spec_opt.HasResult()) {
 		stack.PushFrame(partition_spec_opt.GetResult(), PARTITION_SPEC_OPS,
@@ -11752,8 +11757,12 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeDescribeTableTra
 	if (frame.child_results[2]) {
 		partition_spec = frame.TakeResult<vector<PartitionSpecEntry>>(2);
 	}
+	optional<vector<string>> dotted_identifier {};
+	if (frame.child_results[3]) {
+		dotted_identifier = frame.TakeResult<vector<string>>(3);
+	}
 	auto result = TransformDescribeTable(transformer, describe_rule, has_result, has_result_2,
-	                                     std::move(describe_target), std::move(partition_spec));
+	                                     std::move(describe_target), std::move(partition_spec), dotted_identifier);
 	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
 }
 

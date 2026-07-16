@@ -4035,8 +4035,14 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeTableIn
 		auto partition_spec_value = transformer.Transform<vector<PartitionSpecEntry>>(partition_spec_opt.GetResult());
 		partition_spec = std::move(partition_spec_value);
 	}
+	optional<vector<string>> dotted_identifier {};
+	auto &dotted_identifier_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	if (dotted_identifier_opt.HasResult()) {
+		auto dotted_identifier_value = transformer.Transform<vector<string>>(dotted_identifier_opt.GetResult());
+		dotted_identifier = dotted_identifier_value;
+	}
 	auto result = TransformDescribeTable(transformer, describe_rule, has_result, has_result_1,
-	                                     std::move(describe_target), std::move(partition_spec));
+	                                     std::move(describe_target), std::move(partition_spec), dotted_identifier);
 	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
 }
 
