@@ -24,6 +24,13 @@
 namespace duckdb_fork {
 using namespace duckdb;
 
+optional_ptr<ParseResult> Matcher::MatchParseResult(MatchState &state) const {
+	if (state.packrat_cache) {
+		return state.packrat_cache->Match(*this, state);
+	}
+	return MatchParseResultInternal(state);
+}
+
 SuggestionType Matcher::AddSuggestion(MatchState &state) const {
 	auto entry = state.added_suggestions.find(*this);
 	if (entry != state.added_suggestions.end()) {
@@ -64,7 +71,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -174,7 +181,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		MatchState list_state(state);
 		vector<reference<ParseResult>> results;
 
@@ -246,7 +253,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		MatchState child_state(state);
 		optional_idx start_offset;
 		if (child_state.token_index < child_state.tokens.size()) {
@@ -298,7 +305,7 @@ public:
 		return MatchResultType::FAIL;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		optional_idx start_offset;
 		if (state.token_index < state.tokens.size()) {
 			start_offset = optional_idx(state.tokens[state.token_index].offset);
@@ -378,7 +385,7 @@ public:
 		}
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		MatchState repeat_state(state);
 		vector<reference<ParseResult>> results;
 
@@ -450,7 +457,7 @@ public:
 		return MatchResultType::FAIL;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index < state.tokens.size() &&
 		    state.tokens[state.token_index].type == TokenType::END_OF_INPUT) {
 			state.token_index++;
@@ -562,7 +569,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -749,7 +756,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -824,7 +831,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -947,7 +954,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -1059,7 +1066,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -1129,7 +1136,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -1184,7 +1191,7 @@ public:
 		return MatchResultType::SUCCESS;
 	}
 
-	optional_ptr<ParseResult> MatchParseResult(MatchState &state) const override {
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
@@ -1240,6 +1247,7 @@ private:
 
 Matcher &MatcherAllocator::Allocate(unique_ptr<Matcher> matcher) {
 	auto &result = *matcher;
+	result.packrat_id = optional_idx(matchers.size());
 	matchers.push_back(std::move(matcher));
 	return result;
 }
@@ -1275,6 +1283,7 @@ private:
 
 	void AddKeywordOverride(const char *name, int32_t score, char extra_char = ' ');
 	void AddRuleOverride(const char *name, Matcher &matcher);
+	void AddPackratMemoizedRule(const char *name);
 	void SuppressSuggestions(const char *name);
 	Matcher &CreateMatcher(PEGParser &parser, string_t rule_name);
 	Matcher &CreateMatcher(PEGParser &parser, string_t rule_name, vector<reference<Matcher>> &parameters);
@@ -1284,6 +1293,7 @@ private:
 	string_map_t<reference<Matcher>> matchers;
 	case_insensitive_map_t<reference<Matcher>> keyword_overrides;
 	string_set_t no_suggestion_rules;
+	string_set_t packrat_memoized_rules;
 };
 
 Matcher &MatcherFactory::Keyword(const string &keyword) const {
@@ -1576,6 +1586,9 @@ Matcher &MatcherFactory::CreateMatcher(PEGParser &parser, string_t rule_name, ve
 		throw InternalException("PEG matcher create error - unclosed bracket found");
 	}
 	matcher.SetName(rule_name.GetString());
+	if (packrat_memoized_rules.count(rule_name.GetString())) {
+		matcher.SetPackratMemoized();
+	}
 	if (no_suggestion_rules.count(rule_name.GetString())) {
 		matcher.Cast<ListMatcher>().suppress_suggestions = true;
 	}
@@ -1588,7 +1601,14 @@ void MatcherFactory::AddKeywordOverride(const char *name, int32_t score, char ex
 }
 
 void MatcherFactory::AddRuleOverride(const char *name, Matcher &matcher) {
+	if (packrat_memoized_rules.count(name)) {
+		matcher.SetPackratMemoized();
+	}
 	matchers.insert(make_pair(name, reference<Matcher>(matcher)));
+}
+
+void MatcherFactory::AddPackratMemoizedRule(const char *name) {
+	packrat_memoized_rules.insert(name);
 }
 
 void MatcherFactory::SuppressSuggestions(const char *name) {
@@ -1604,6 +1624,36 @@ Matcher &MatcherFactory::CreateMatcher(const char *grammar, const char *root_rul
 	AddKeywordOverride("TABLE", 1, ' ');
 	AddKeywordOverride(".", 0, '\0');
 	AddKeywordOverride("(", 0, '\0');
+	// packrat memoized rules
+	//===--------------------------------------------------------------------===//
+	// START GENERATED PACKRAT MEMOIZED RULES
+	//===--------------------------------------------------------------------===//
+	AddPackratMemoizedRule("Expression");
+	AddPackratMemoizedRule("LambdaArrowExpression");
+	AddPackratMemoizedRule("LogicalOrExpression");
+	AddPackratMemoizedRule("LogicalAndExpression");
+	AddPackratMemoizedRule("LogicalNotExpression");
+	AddPackratMemoizedRule("IsExpression");
+	AddPackratMemoizedRule("ComparisonExpression");
+	AddPackratMemoizedRule("BitwiseExpression");
+	AddPackratMemoizedRule("AdditiveExpression");
+	AddPackratMemoizedRule("MultiplicativeExpression");
+	AddPackratMemoizedRule("ExponentiationExpression");
+	AddPackratMemoizedRule("PrefixExpression");
+	AddPackratMemoizedRule("CollateExpression");
+	AddPackratMemoizedRule("AtTimeZoneExpression");
+	AddPackratMemoizedRule("SingleExpression");
+	AddPackratMemoizedRule("BaseExpression");
+	AddPackratMemoizedRule("ParensExpression");
+	AddPackratMemoizedRule("ParenthesisExpression");
+	AddPackratMemoizedRule("Identifier");
+	AddPackratMemoizedRule("ColId");
+	AddPackratMemoizedRule("ColumnReference");
+	AddPackratMemoizedRule("FunctionExpression");
+	//===--------------------------------------------------------------------===//
+	// END GENERATED PACKRAT MEMOIZED RULES
+	//===--------------------------------------------------------------------===//
+
 	// rule overrides
 	//===--------------------------------------------------------------------===//
 	// START GENERATED RULE OVERRIDES
@@ -1633,6 +1683,8 @@ Matcher &MatcherFactory::CreateMatcher(const char *grammar, const char *root_rul
 	                allocator.Allocate(make_uniq<IdentifierMatcher>(SuggestionState::SUGGEST_SCALAR_FUNCTION_NAME)));
 	AddRuleOverride("ReservedFunctionName", allocator.Allocate(make_uniq<ReservedIdentifierMatcher>(
 	                                            SuggestionState::SUGGEST_SCALAR_FUNCTION_NAME)));
+	AddRuleOverride("ReservedKeyword",
+	                allocator.Allocate(make_uniq<ReservedIdentifierMatcher>(SuggestionState::SUGGEST_VARIABLE)));
 	AddRuleOverride("TableFunctionName",
 	                allocator.Allocate(make_uniq<IdentifierMatcher>(SuggestionState::SUGGEST_TABLE_FUNCTION_NAME)));
 	AddRuleOverride("TypeName", allocator.Allocate(make_uniq<IdentifierMatcher>(SuggestionState::SUGGEST_TYPE_NAME)));

@@ -145,4 +145,10 @@ string PEGTransformerFactory::TransformViewColumn(PEGTransformer &transformer, c
 	return col_id.GetIdentifierName();
 }
 
+// ViewColumnList <- Parens(List(ViewColumn))
+vector<string> PEGTransformerFactory::TransformViewColumnList(PEGTransformer &transformer,
+                                                               const vector<string> &view_column) {
+	return view_column;
+}
+
 } // namespace duckdb_fork

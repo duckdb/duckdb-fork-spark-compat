@@ -146,6 +146,11 @@ pair<string, string> PEGTransformerFactory::TransformSparkUsing(PEGTransformer &
 	return make_pair(identifier.GetIdentifierName(), spark_location ? *spark_location : string());
 }
 
+// SparkLocation <- 'LOCATION' StringLiteral
+string PEGTransformerFactory::TransformSparkLocation(PEGTransformer &transformer, const string &string_literal) {
+	return string_literal;
+}
+
 bool PEGTransformerFactory::TransformOrReplace(PEGTransformer &transformer) {
 	return true;
 }
@@ -202,20 +207,13 @@ QualifiedName PEGTransformerFactory::TransformIdentifierOrStringLiteral(PEGTrans
 	return QualifiedName(Identifier(child));
 }
 
-string PEGTransformerFactory::TransformColLabelOrString(PEGTransformer &transformer, ParseResult &parse_result) {
-	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
-	if (choice_pr.GetResult().type == ParseResultType::STRING) {
-		return choice_pr.GetResult().Cast<StringLiteralParseResult>().result;
-	}
-	return transformer.Transform<string>(choice_pr.GetResult());
+Identifier PEGTransformerFactory::TransformColLabelIdentifier(PEGTransformer &transformer, const string &col_label) {
+	return Identifier(col_label);
 }
 
-Identifier PEGTransformerFactory::TransformColIdOrString(PEGTransformer &transformer, ParseResult &choice_result) {
-	if (choice_result.type == ParseResultType::STRING) {
-		return Identifier(choice_result.Cast<StringLiteralParseResult>().result);
-	}
-	return transformer.Transform<Identifier>(choice_result);
+Identifier PEGTransformerFactory::TransformStringLiteralIdentifier(PEGTransformer &transformer,
+                                                                   const string &string_literal) {
+	return Identifier(string_literal);
 }
 
 string PEGTransformerFactory::TransformIdentifier(PEGTransformer &transformer, ParseResult &parse_result) {
@@ -231,6 +229,15 @@ vector<string> PEGTransformerFactory::TransformDottedIdentifier(PEGTransformer &
 		parts.insert(parts.end(), dot_col_label->begin(), dot_col_label->end());
 	}
 	return parts;
+}
+
+string PEGTransformerFactory::TransformDotColLabel(PEGTransformer &transformer, const string &col_label) {
+	return col_label;
+}
+
+// ColumnComment <- 'COMMENT' StringLiteral
+string PEGTransformerFactory::TransformColumnComment(PEGTransformer &transformer, const string &string_literal) {
+	return string_literal;
 }
 
 // ColumnConstraint <- NotNullConstraint / UniqueConstraint / PrimaryKeyConstraint / DefaultValue / CheckConstraint /
@@ -379,13 +386,9 @@ PEGTransformerFactory::TransformTopLevelConstraint(PEGTransformer &transformer, 
 	return top_level_constraint_list;
 }
 
-unique_ptr<Constraint> PEGTransformerFactory::TransformTopLevelConstraintList(PEGTransformer &transformer,
-                                                                              ParseResult &choice_result) {
-	if (choice_result.name == "CheckConstraint") {
-		auto cc_entry = transformer.Transform<ColumnConstraintEntry>(choice_result);
-		return std::move(cc_entry.constraint);
-	}
-	return transformer.Transform<unique_ptr<Constraint>>(choice_result);
+unique_ptr<Constraint> PEGTransformerFactory::TransformTopCheckConstraint(PEGTransformer &transformer,
+                                                                          ColumnConstraintEntry check_constraint) {
+	return std::move(check_constraint.constraint);
 }
 
 unique_ptr<Constraint> PEGTransformerFactory::TransformTopPrimaryKeyConstraint(PEGTransformer &transformer,
