@@ -54,6 +54,7 @@ SQLStatement:
   rules:
     - Statement
     - AlterStatement
+    - SparkAlterTblPropertiesStmt
     - AnalyzeStatement
     - AttachStatement
     - CallStatement
@@ -1680,6 +1681,20 @@ overrides:
     by_value: true
   # spark
   SparkUsing: "pair<string, string>"
+  SparkTableComment: "string"
+  SparkTblPropertyValue: "string"
+  SparkTblProperty:
+    type: "pair<string, string>"
+    by_value: true
+  SparkTblPropertiesAction:
+    type: "SparkTblPropertiesAction"
+    by_value: true
+  SparkSetTblProperties:
+    type: "SparkTblPropertiesAction"
+    by_value: true
+  SparkUnsetTblProperties:
+    type: "SparkTblPropertiesAction"
+    by_value: true
   ColumnComment: "string"
   ViewColumn: "string"
   ViewColumnList: "vector<string>"

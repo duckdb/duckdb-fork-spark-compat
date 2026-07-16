@@ -57,6 +57,84 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformAlterSchemaStmt
 	return make_uniq<TypedTransformResult<unique_ptr<AlterInfo>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformSparkAlterTblPropertiesStmtInternal(PEGTransformer &transformer,
+                                                                    ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto base_table_name = transformer.Transform<unique_ptr<BaseTableRef>>(list_pr.GetChild(2));
+	auto spark_tbl_properties_action = transformer.Transform<SparkTblPropertiesAction>(list_pr.GetChild(3));
+	auto result = TransformSparkAlterTblPropertiesStmt(transformer, std::move(base_table_name),
+	                                                   std::move(spark_tbl_properties_action));
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformSparkTblPropertiesActionInternal(PEGTransformer &transformer,
+                                                                 ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto result = transformer.Transform<SparkTblPropertiesAction>(choice_pr.GetResult());
+	return make_uniq<TypedTransformResult<SparkTblPropertiesAction>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformSparkSetTblPropertiesInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	vector<pair<string, string>> spark_tbl_property;
+	auto spark_tbl_property_items = ExtractParseResultsFromList(ExtractResultFromParens(list_pr.GetChild(2)));
+	for (auto &spark_tbl_property_item : spark_tbl_property_items) {
+		auto spark_tbl_property_value = transformer.Transform<pair<string, string>>(spark_tbl_property_item.get());
+		spark_tbl_property.push_back(std::move(spark_tbl_property_value));
+	}
+	auto result = TransformSparkSetTblProperties(transformer, std::move(spark_tbl_property));
+	return make_uniq<TypedTransformResult<SparkTblPropertiesAction>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformSparkUnsetTblPropertiesInternal(PEGTransformer &transformer,
+                                                                ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	optional<bool> if_exists {};
+	auto &if_exists_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	if (if_exists_opt.HasResult()) {
+		auto if_exists_value = transformer.Transform<bool>(if_exists_opt.GetResult());
+		if_exists = if_exists_value;
+	}
+	vector<Identifier> col_id_or_string;
+	auto col_id_or_string_items = ExtractParseResultsFromList(ExtractResultFromParens(list_pr.GetChild(3)));
+	for (auto &col_id_or_string_item : col_id_or_string_items) {
+		auto col_id_or_string_value = transformer.Transform<Identifier>(col_id_or_string_item.get());
+		col_id_or_string.push_back(col_id_or_string_value);
+	}
+	auto result = TransformSparkUnsetTblProperties(transformer, if_exists, col_id_or_string);
+	return make_uniq<TypedTransformResult<SparkTblPropertiesAction>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSparkTblPropertyInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto col_id_or_string = transformer.Transform<Identifier>(list_pr.GetChild(0));
+	optional<string> spark_tbl_property_value {};
+	auto &spark_tbl_property_value_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (spark_tbl_property_value_opt.HasResult()) {
+		auto spark_tbl_property_value_value = transformer.Transform<string>(spark_tbl_property_value_opt.GetResult());
+		spark_tbl_property_value = spark_tbl_property_value_value;
+	}
+	auto result = TransformSparkTblProperty(transformer, col_id_or_string, spark_tbl_property_value);
+	return make_uniq<TypedTransformResult<pair<string, string>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformSparkTblPropertyValueInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(0).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto col_id_or_string = transformer.Transform<Identifier>(list_pr.GetChild(1));
+	auto result = TransformSparkTblPropertyValue(transformer, has_result, col_id_or_string);
+	return make_uniq<TypedTransformResult<string>>(result);
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformAlterTableOptionsInternal(PEGTransformer &transformer,
                                                                                            ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -2686,6 +2764,14 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSparkLocationIn
 	return make_uniq<TypedTransformResult<string>>(result);
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSparkTableCommentInternal(PEGTransformer &transformer,
+                                                                                           ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto col_id_or_string = transformer.Transform<Identifier>(list_pr.GetChild(1));
+	auto result = TransformSparkTableComment(transformer, col_id_or_string);
+	return make_uniq<TypedTransformResult<string>>(result);
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateTableAsInternal(PEGTransformer &transformer,
                                                                                        ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -2708,22 +2794,28 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateTableAsIn
 		    transformer.Transform<PartitionSortedOptions>(partition_sorted_options_opt.GetResult());
 		partition_sorted_options = std::move(partition_sorted_options_value);
 	}
+	optional<string> spark_table_comment {};
+	auto &spark_table_comment_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
+	if (spark_table_comment_opt.HasResult()) {
+		auto spark_table_comment_value = transformer.Transform<string>(spark_table_comment_opt.GetResult());
+		spark_table_comment = spark_table_comment_value;
+	}
 	optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list {};
-	auto &with_list_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
+	auto &with_list_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
 	if (with_list_opt.HasResult()) {
 		auto with_list_value =
 		    transformer.Transform<case_insensitive_map_t<unique_ptr<ParsedExpression>>>(with_list_opt.GetResult());
 		with_list = std::move(with_list_value);
 	}
-	auto statement = transformer.Transform<unique_ptr<SQLStatement>>(list_pr.GetChild(5));
+	auto statement = transformer.Transform<unique_ptr<SQLStatement>>(list_pr.GetChild(6));
 	optional<bool> with_data {};
-	auto &with_data_opt = list_pr.GetChild(6).Cast<OptionalParseResult>();
+	auto &with_data_opt = list_pr.GetChild(7).Cast<OptionalParseResult>();
 	if (with_data_opt.HasResult()) {
 		auto with_data_value = transformer.Transform<bool>(with_data_opt.GetResult());
 		with_data = with_data_value;
 	}
 	auto result = TransformCreateTableAs(transformer, spark_using, std::move(identifier_list),
-	                                     std::move(partition_sorted_options), std::move(with_list),
+	                                     std::move(partition_sorted_options), spark_table_comment, std::move(with_list),
 	                                     std::move(statement), with_data);
 	return make_uniq<TypedTransformResult<CreateTableDefinition>>(std::move(result));
 }
@@ -2866,15 +2958,22 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateColumnLis
 		    transformer.Transform<PartitionSortedOptions>(partition_sorted_options_opt.GetResult());
 		partition_sorted_options = std::move(partition_sorted_options_value);
 	}
+	optional<string> spark_table_comment {};
+	auto &spark_table_comment_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
+	if (spark_table_comment_opt.HasResult()) {
+		auto spark_table_comment_value = transformer.Transform<string>(spark_table_comment_opt.GetResult());
+		spark_table_comment = spark_table_comment_value;
+	}
 	optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list {};
-	auto &with_list_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
+	auto &with_list_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
 	if (with_list_opt.HasResult()) {
 		auto with_list_value =
 		    transformer.Transform<case_insensitive_map_t<unique_ptr<ParsedExpression>>>(with_list_opt.GetResult());
 		with_list = std::move(with_list_value);
 	}
-	auto result = TransformCreateColumnList(transformer, std::move(create_table_column_list), spark_using,
-	                                        std::move(partition_sorted_options), std::move(with_list));
+	auto result =
+	    TransformCreateColumnList(transformer, std::move(create_table_column_list), spark_using,
+	                              std::move(partition_sorted_options), spark_table_comment, std::move(with_list));
 	return make_uniq<TypedTransformResult<CreateTableDefinition>>(std::move(result));
 }
 
@@ -10820,6 +10919,12 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"AlterOptions", &PEGTransformerFactory::TransformAlterOptionsInternal},
 	    {"AlterTableStmt", &PEGTransformerFactory::TransformAlterTableStmtInternal},
 	    {"AlterSchemaStmt", &PEGTransformerFactory::TransformAlterSchemaStmtInternal},
+	    {"SparkAlterTblPropertiesStmt", &PEGTransformerFactory::TransformSparkAlterTblPropertiesStmtInternal},
+	    {"SparkTblPropertiesAction", &PEGTransformerFactory::TransformSparkTblPropertiesActionInternal},
+	    {"SparkSetTblProperties", &PEGTransformerFactory::TransformSparkSetTblPropertiesInternal},
+	    {"SparkUnsetTblProperties", &PEGTransformerFactory::TransformSparkUnsetTblPropertiesInternal},
+	    {"SparkTblProperty", &PEGTransformerFactory::TransformSparkTblPropertyInternal},
+	    {"SparkTblPropertyValue", &PEGTransformerFactory::TransformSparkTblPropertyValueInternal},
 	    {"AlterTableOptions", &PEGTransformerFactory::TransformAlterTableOptionsInternal},
 	    {"AddConstraint", &PEGTransformerFactory::TransformAddConstraintInternal},
 	    {"AddColumn", &PEGTransformerFactory::TransformAddColumnInternal},
@@ -11077,6 +11182,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"CreateTableDefinition", &PEGTransformerFactory::TransformCreateTableDefinitionInternal},
 	    {"SparkUsing", &PEGTransformerFactory::TransformSparkUsingInternal},
 	    {"SparkLocation", &PEGTransformerFactory::TransformSparkLocationInternal},
+	    {"SparkTableComment", &PEGTransformerFactory::TransformSparkTableCommentInternal},
 	    {"CreateTableAs", &PEGTransformerFactory::TransformCreateTableAsInternal},
 	    {"PartitionSortedOptions", &PEGTransformerFactory::TransformPartitionSortedOptionsInternal},
 	    {"PartitionOptSortedOptions", &PEGTransformerFactory::TransformPartitionOptSortedOptionsInternal},

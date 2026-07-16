@@ -18,6 +18,7 @@ Statement <-
 	UpdateStatement /
 	PrepareStatement /
 	ExecuteStatement /
+	SparkAlterTblPropertiesStmt /
 	AlterStatement /
 	TransactionStatement /
 	DeleteStatement /
@@ -709,6 +710,7 @@ UnreservedKeyword <- 'ABORT' /
 'TABLES' /
 'TABLESPACE' /
 'TARGET' /
+'TBLPROPERTIES' /
 'TEMP' /
 'TEMPLATE' /
 'TEMPORARY' /
@@ -727,6 +729,7 @@ UnreservedKeyword <- 'ABORT' /
 'UNKNOWN' /
 'UNLISTEN' /
 'UNLOGGED' /
+'UNSET' /
 'UNTIL' /
 'UPDATE' /
 'USE' /
@@ -762,6 +765,16 @@ AlterOptions <- AlterTableStmt / AlterViewStmt / AlterSequenceStmt / AlterDataba
 
 AlterTableStmt <- 'TABLE' IfExists? BaseTableName List(AlterTableOptions)
 AlterSchemaStmt <- 'SCHEMA' IfExists? QualifiedName RenameAlter
+
+# Spark's ALTER TABLE ... SET/UNSET TBLPROPERTIES. Only the reserved 'comment' property maps onto a duckdb
+# concept (the table comment); every other property is accepted and dropped. Lives at the Statement level
+# because it yields either an AlterStatement or, with no 'comment' property, a no-op VacuumStatement.
+SparkAlterTblPropertiesStmt <- 'ALTER' 'TABLE' BaseTableName SparkTblPropertiesAction
+SparkTblPropertiesAction <- SparkSetTblProperties / SparkUnsetTblProperties
+SparkSetTblProperties <- 'SET' 'TBLPROPERTIES' Parens(List(SparkTblProperty))
+SparkUnsetTblProperties <- 'UNSET' 'TBLPROPERTIES' IfExists? Parens(List(ColIdOrString))
+SparkTblProperty <- ColIdOrString SparkTblPropertyValue?
+SparkTblPropertyValue <- '='? ColIdOrString
 
 AlterTableOptions <- AddColumn / DropColumn / AlterColumn / AddConstraint / ChangeNullability /
         RenameColumn / RenameAlter / SetPartitionedBy / ResetPartitionedBy / SetSortedBy / ResetSortedBy / SetOptions / ResetOptions
@@ -992,7 +1005,9 @@ CreateTableStmt <- 'TABLE' IfNotExists? QualifiedName CreateTableDefinition Comm
 CreateTableDefinition <- CreateTableAs / CreateColumnList
 SparkUsing <- 'USING' Identifier SparkLocation?
 SparkLocation <- 'LOCATION' StringLiteral
-CreateTableAs <- SparkUsing? IdentifierList? PartitionSortedOptions? WithList? 'AS' Statement WithData?
+# Spark's table-level COMMENT clause. ColIdOrString accepts both 'text' and spark's double-quoted "text".
+SparkTableComment <- 'COMMENT' ColIdOrString
+CreateTableAs <- SparkUsing? IdentifierList? PartitionSortedOptions? SparkTableComment? WithList? 'AS' Statement WithData?
 PartitionSortedOptions <- PartitionOptSortedOptions / SortedOptPartitionOptions
 PartitionOptSortedOptions <- PartitionOptions SortedOptions?
 SortedOptPartitionOptions <- SortedOptions PartitionOptions?
@@ -1004,7 +1019,7 @@ WithData <- WithDataOnly / WithNoData
 WithDataOnly <- 'WITH' 'DATA'
 WithNoData <- 'WITH' 'NO' 'DATA'
 IdentifierList <- Parens(List(Identifier))
-CreateColumnList <- Parens(CreateTableColumnList?) SparkUsing? PartitionSortedOptions? WithList?
+CreateColumnList <- Parens(CreateTableColumnList?) SparkUsing? PartitionSortedOptions? SparkTableComment? WithList?
 IfNotExists <- 'IF' 'NOT' 'EXISTS'
 QualifiedName <- CatalogReservedSchemaIdentifier / SchemaReservedIdentifierOrStringLiteral / IdentifierOrStringLiteral
 SchemaReservedIdentifierOrStringLiteral <- SchemaQualification ReservedIdentifierOrStringLiteral

@@ -15,5 +15,7 @@ struct CreateTableDefinition {
 	vector<unique_ptr<ParsedExpression>> partition_keys;
 	vector<unique_ptr<ParsedExpression>> sort_keys;
 	case_insensitive_map_t<unique_ptr<ParsedExpression>> options;
+	//! spark's table-level COMMENT clause; NULL when absent
+	Value comment;
 };
 } // namespace duckdb_fork

@@ -18,6 +18,7 @@ Statement <-
 	UpdateStatement /
 	PrepareStatement /
 	ExecuteStatement /
+	SparkAlterTblPropertiesStmt /
 	AlterStatement /
 	TransactionStatement /
 	DeleteStatement /

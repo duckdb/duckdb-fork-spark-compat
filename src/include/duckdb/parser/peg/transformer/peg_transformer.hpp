@@ -28,6 +28,7 @@
 #include "duckdb/parser/peg/ast/on_conflict_expression_target.hpp"
 #include "duckdb/parser/peg/ast/sequence_option.hpp"
 #include "duckdb/parser/peg/ast/setting_info.hpp"
+#include "duckdb/parser/peg/ast/spark_tbl_properties_action.hpp"
 #include "duckdb/parser/peg/ast/table_alias.hpp"
 #include "duckdb/parser/peg/ast/cast_arguments.hpp"
 #include "duckdb/parser/peg/ast/expression_chain.hpp"
@@ -507,6 +508,35 @@ public:
 	                                                TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeAlterSchemaStmtTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSparkAlterTblPropertiesStmtTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                            TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkAlterTblPropertiesStmtTrampoline(PEGTransformer &transformer,
+	                                                                                      TransformStack &stack,
+	                                                                                      TransformStackFrame &frame);
+	static void InitializeSparkTblPropertiesActionTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                         TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkTblPropertiesActionTrampoline(PEGTransformer &transformer,
+	                                                                                   TransformStack &stack,
+	                                                                                   TransformStackFrame &frame);
+	static void InitializeSparkSetTblPropertiesTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                      TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkSetTblPropertiesTrampoline(PEGTransformer &transformer,
+	                                                                                TransformStack &stack,
+	                                                                                TransformStackFrame &frame);
+	static void InitializeSparkUnsetTblPropertiesTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                        TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkUnsetTblPropertiesTrampoline(PEGTransformer &transformer,
+	                                                                                  TransformStack &stack,
+	                                                                                  TransformStackFrame &frame);
+	static void InitializeSparkTblPropertyTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                 TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeSparkTblPropertyTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSparkTblPropertyValueTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                      TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkTblPropertyValueTrampoline(PEGTransformer &transformer,
+	                                                                                TransformStack &stack,
+	                                                                                TransformStackFrame &frame);
 	static void InitializeAlterTableOptionsTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                  TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -1593,6 +1623,10 @@ public:
 	                                              TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeSparkLocationTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSparkTableCommentTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                  TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeSparkTableCommentTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeCreateTableAsTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                              TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -4896,6 +4930,31 @@ public:
 	static unique_ptr<AlterInfo> TransformAlterSchemaStmt(PEGTransformer &transformer, const optional<bool> &if_exists,
 	                                                      const QualifiedName &qualified_name,
 	                                                      unique_ptr<AlterTableInfo> rename_alter);
+	static unique_ptr<TransformResultValue> TransformSparkAlterTblPropertiesStmtInternal(PEGTransformer &transformer,
+	                                                                                     ParseResult &parse_result);
+	static unique_ptr<SQLStatement>
+	TransformSparkAlterTblPropertiesStmt(PEGTransformer &transformer, unique_ptr<BaseTableRef> base_table_name,
+	                                     SparkTblPropertiesAction spark_tbl_properties_action);
+	static unique_ptr<TransformResultValue> TransformSparkTblPropertiesActionInternal(PEGTransformer &transformer,
+	                                                                                  ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformSparkSetTblPropertiesInternal(PEGTransformer &transformer,
+	                                                                               ParseResult &parse_result);
+	static SparkTblPropertiesAction TransformSparkSetTblProperties(PEGTransformer &transformer,
+	                                                               vector<pair<string, string>> spark_tbl_property);
+	static unique_ptr<TransformResultValue> TransformSparkUnsetTblPropertiesInternal(PEGTransformer &transformer,
+	                                                                                 ParseResult &parse_result);
+	static SparkTblPropertiesAction TransformSparkUnsetTblProperties(PEGTransformer &transformer,
+	                                                                 const optional<bool> &if_exists,
+	                                                                 const vector<Identifier> &col_id_or_string);
+	static unique_ptr<TransformResultValue> TransformSparkTblPropertyInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static pair<string, string> TransformSparkTblProperty(PEGTransformer &transformer,
+	                                                      const Identifier &col_id_or_string,
+	                                                      const optional<string> &spark_tbl_property_value);
+	static unique_ptr<TransformResultValue> TransformSparkTblPropertyValueInternal(PEGTransformer &transformer,
+	                                                                               ParseResult &parse_result);
+	static string TransformSparkTblPropertyValue(PEGTransformer &transformer, const bool &has_result,
+	                                             const Identifier &col_id_or_string);
 	static unique_ptr<TransformResultValue> TransformAlterTableOptionsInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformAddConstraintInternal(PEGTransformer &transformer,
@@ -5814,12 +5873,16 @@ public:
 	static unique_ptr<TransformResultValue> TransformSparkLocationInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static string TransformSparkLocation(PEGTransformer &transformer, const string &string_literal);
+	static unique_ptr<TransformResultValue> TransformSparkTableCommentInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static string TransformSparkTableComment(PEGTransformer &transformer, const Identifier &col_id_or_string);
 	static unique_ptr<TransformResultValue> TransformCreateTableAsInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static CreateTableDefinition
 	TransformCreateTableAs(PEGTransformer &transformer, const optional<pair<string, string>> &spark_using,
 	                       optional<ColumnList> identifier_list,
 	                       optional<PartitionSortedOptions> partition_sorted_options,
+	                       const optional<string> &spark_table_comment,
 	                       optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list,
 	                       unique_ptr<SQLStatement> statement, const optional<bool> &with_data);
 	static unique_ptr<TransformResultValue> TransformPartitionSortedOptionsInternal(PEGTransformer &transformer,
@@ -5864,6 +5927,7 @@ public:
 	TransformCreateColumnList(PEGTransformer &transformer, optional<ColumnElements> create_table_column_list,
 	                          const optional<pair<string, string>> &spark_using,
 	                          optional<PartitionSortedOptions> partition_sorted_options,
+	                          const optional<string> &spark_table_comment,
 	                          optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list);
 	static unique_ptr<TransformResultValue> TransformIfNotExistsInternal(PEGTransformer &transformer,
 	                                                                     ParseResult &parse_result);

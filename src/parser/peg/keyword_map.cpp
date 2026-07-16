@@ -378,6 +378,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	unreserved_keyword_map.insert("tables");
 	unreserved_keyword_map.insert("tablespace");
 	unreserved_keyword_map.insert("target");
+	unreserved_keyword_map.insert("tblproperties");
 	unreserved_keyword_map.insert("temp");
 	unreserved_keyword_map.insert("template");
 	unreserved_keyword_map.insert("temporary");
@@ -396,6 +397,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	unreserved_keyword_map.insert("unknown");
 	unreserved_keyword_map.insert("unlisten");
 	unreserved_keyword_map.insert("unlogged");
+	unreserved_keyword_map.insert("unset");
 	unreserved_keyword_map.insert("until");
 	unreserved_keyword_map.insert("update");
 	unreserved_keyword_map.insert("use");
