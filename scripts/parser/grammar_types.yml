@@ -1815,7 +1815,6 @@ matcher_rule_overrides:
     allow_type_overlap: true
     matcher: operator
   CloseAngleBracket:
-    allow_type_overlap: true
     matcher: close_angle_bracket
 
 packrat_memoized_rules:

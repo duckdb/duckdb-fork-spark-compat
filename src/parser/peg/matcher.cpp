@@ -1195,7 +1195,9 @@ public:
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
-		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
+		// offset of the specific '>' this call consumes within the (possibly multi-'>') token
+		auto start_offset =
+		    optional_idx(state.tokens[state.token_index].offset + state.close_angle_brackets_consumed);
 		if (!MatchClose(state)) {
 			return nullptr;
 		}
@@ -1235,9 +1237,9 @@ private:
 			return false;
 		}
 		// consume one '>' from the run; only advance past the token once the run is exhausted
-		state.partial_gt++;
-		if (state.partial_gt >= token.text.size()) {
-			state.partial_gt = 0;
+		state.close_angle_brackets_consumed++;
+		if (state.close_angle_brackets_consumed >= token.text.size()) {
+			state.close_angle_brackets_consumed = 0;
 			state.token_index++;
 			state.UpdateMaxTokenIndex();
 		}
