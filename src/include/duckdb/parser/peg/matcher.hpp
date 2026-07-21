@@ -155,8 +155,7 @@ struct MatchState {
 	}
 	MatchState(MatchState &state)
 	    : tokens(state.tokens), suggestions(state.suggestions), token_index(state.token_index),
-	      close_angle_brackets_consumed(state.close_angle_brackets_consumed), allocator(state.allocator),
-	      max_token_index(state.max_token_index),
+	      allocator(state.allocator), max_token_index(state.max_token_index),
 	      preserve_identifier_case(state.preserve_identifier_case), packrat_cache(state.packrat_cache) {
 	}
 
@@ -164,19 +163,10 @@ struct MatchState {
 	vector<MatcherSuggestion> &suggestions;
 	reference_set_t<const Matcher> added_suggestions;
 	idx_t token_index;
-	//! number of closing angle brackets ('>' chars) already consumed from the token at token_index (nested type
-	//! closers, e.g. array<array<int>>); 0 unless mid-way through a '>'-run token
-	idx_t close_angle_brackets_consumed = 0;
 	ParseResultAllocator &allocator;
 	idx_t &max_token_index;
 	bool preserve_identifier_case = true;
 	ParserPackratCache *packrat_cache;
-
-	//! adopt a child state's parse position (token index + closing angle brackets consumed within that token)
-	void SyncPosition(const MatchState &child) {
-		token_index = child.token_index;
-		close_angle_brackets_consumed = child.close_angle_brackets_consumed;
-	}
 
 	void UpdateMaxTokenIndex() {
 		if (token_index > max_token_index) {

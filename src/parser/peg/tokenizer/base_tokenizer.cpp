@@ -415,7 +415,7 @@ bool BaseTokenizer::TokenizeInputInternal() {
 						end_pos--;
 					}
 				}
-				PushToken(last_pos, end_pos, TokenType::OPERATOR);
+				PushOperatorToken(last_pos, end_pos);
 				// Push any trimmed '+' characters as individual tokens
 				for (idx_t j = end_pos; j < i; j++) {
 					tokens.emplace_back(string(1, sql[j]), j, TokenType::OPERATOR);
@@ -551,12 +551,31 @@ bool BaseTokenizer::TokenizeInputInternal() {
 	return true;
 }
 
+void BaseTokenizer::PushOperatorToken(idx_t start, idx_t end) {
+	// Split leading '>' chars into individual tokens so angle-bracket type closers can consume them
+	// one at a time (array<array<int>>), keeping a final '>=' glued (it is a comparison operator,
+	// never a closer - mirroring Spark's lexer). The matchers re-glue offset-adjacent pieces, so
+	// expression operators ('>>', '>>>', '>>=') still match as if the run were one token.
+	idx_t pos = start;
+	while (pos < end && sql[pos] == '>' && !(end - pos == 2 && sql[pos + 1] == '=')) {
+		PushToken(pos, pos + 1, TokenType::OPERATOR);
+		pos++;
+	}
+	if (pos < end) {
+		PushToken(pos, end, TokenType::OPERATOR);
+	}
+}
+
 void BaseTokenizer::OnStatementEnd(idx_t pos) {
 	// Default: Do nothing
 }
 
 void BaseTokenizer::OnLastToken(TokenizeState state, string last_word, idx_t last_pos) {
 	if (last_word.empty()) {
+		return;
+	}
+	if (state == TokenizeState::OPERATOR) {
+		PushOperatorToken(last_pos, last_pos + last_word.size());
 		return;
 	}
 	if (state == TokenizeState::KEYWORD) {

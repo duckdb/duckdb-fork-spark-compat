@@ -50,6 +50,9 @@ private:
 
 public:
 	virtual void PushToken(idx_t start, idx_t end, TokenType type, bool unterminated = false);
+	//! Push an operator run, splitting leading '>' chars into individual tokens (keeping a trailing
+	//! '>=' glued) so angle-bracket type closers can consume them one at a time
+	void PushOperatorToken(idx_t start, idx_t end);
 	virtual void OnStatementEnd(idx_t pos);
 	virtual void OnLastToken(TokenizeState state, string last_word, idx_t last_pos);
 

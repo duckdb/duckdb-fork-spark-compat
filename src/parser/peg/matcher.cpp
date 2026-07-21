@@ -55,6 +55,29 @@ void MatchState::AddSuggestion(MatcherSuggestion suggestion) {
 	suggestions.push_back(std::move(suggestion));
 }
 
+//! True if this token is made purely of operator-run characters (the tokenizer's OPERATOR-state
+//! continuation set). The tokenizer splits '>'-led operator runs into individual tokens; adjacent
+//! tokens satisfying this predicate originate from one source run and can be glued back together.
+static bool IsGluedOperatorToken(const MatcherToken &token) {
+	if (token.type != TokenType::OPERATOR || token.text.empty()) {
+		return false;
+	}
+	for (auto &c : token.text) {
+		if (!BaseTokenizer::CharacterIsOperator(c)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+//! True if the token at idx directly continues the operator run of the previous token
+//! (offset-contiguous in the source, no whitespace in between)
+static bool ContinuesOperatorRun(const vector<MatcherToken> &tokens, idx_t idx) {
+	auto &prev = tokens[idx - 1];
+	auto &token = tokens[idx];
+	return IsGluedOperatorToken(token) && token.offset == prev.offset + prev.text.size();
+}
+
 class KeywordMatcher : public Matcher {
 public:
 	static constexpr MatcherType TYPE = MatcherType::KEYWORD;
@@ -75,12 +98,15 @@ public:
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
-		auto &token_text = state.tokens[state.token_index].text;
-		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
+		auto index_before = state.token_index;
+		auto &token = state.tokens[state.token_index];
+		auto start_offset = optional_idx(token.offset);
 		if (!MatchKeyword(state)) {
 			return nullptr;
 		}
-		auto result = state.allocator.Allocate(make_uniq<KeywordParseResult>(token_text, start_offset));
+		// a keyword matched across several glued operator tokens is recorded as the keyword itself
+		const string &matched_text = state.token_index - index_before > 1 ? keyword : token.text;
+		auto result = state.allocator.Allocate(make_uniq<KeywordParseResult>(matched_text, start_offset));
 		result->name = name;
 		return result;
 	}
@@ -102,6 +128,9 @@ private:
 			return false;
 		}
 		auto &token = state.tokens[state.token_index];
+		if (IsGluedOperatorToken(token)) {
+			return MatchLiteralAgainstGluedOperatorRun(state);
+		}
 		if (StringUtil::CIEquals(keyword, token.text)) {
 			// move to the next token
 			state.token_index++;
@@ -109,6 +138,37 @@ private:
 			return true;
 		}
 		return false;
+	}
+
+	//! Match this grammar literal ("keyword" covers operator literals like '>>' too) against the
+	//! maximal glued run of operator tokens. The tokenizer splits '>'-led runs so angle-bracket type
+	//! closers can consume them one '>' at a time; gluing the pieces back here makes expression
+	//! operators ('>>', '>>=') match exactly as if the run were still a single token.
+	bool MatchLiteralAgainstGluedOperatorRun(MatchState &state) const {
+		auto &tokens = state.tokens;
+		idx_t idx = state.token_index;
+		idx_t keyword_pos = 0;
+		while (keyword_pos < keyword.size()) {
+			if (idx >= tokens.size()) {
+				return false;
+			}
+			if (idx > state.token_index && !ContinuesOperatorRun(tokens, idx)) {
+				return false;
+			}
+			auto &text = tokens[idx].text;
+			if (keyword.compare(keyword_pos, text.size(), text) != 0) {
+				return false;
+			}
+			keyword_pos += text.size();
+			idx++;
+		}
+		// the keyword must cover the whole glued run (maximal munch, as if it were a single token)
+		if (idx < tokens.size() && ContinuesOperatorRun(tokens, idx)) {
+			return false;
+		}
+		state.token_index = idx;
+		state.UpdateMaxTokenIndex();
+		return true;
 	}
 
 private:
@@ -153,7 +213,7 @@ public:
 						break;
 					}
 				}
-				state.SyncPosition(list_state);
+				state.token_index = list_state.token_index;
 				if (child_idx == matchers.size()) {
 					// we managed to provide suggestions for all tokens
 					// that means all other tokens were optional - i.e. we succeeded in matching them
@@ -172,7 +232,7 @@ public:
 			}
 		}
 		// we matched all child matchers - propagate token index upward
-		state.SyncPosition(list_state);
+		state.token_index = list_state.token_index;
 		if (suppress_suggestions) {
 			// discard suggestions from child matchers that were added during matching
 			state.suggestions.erase(state.suggestions.begin() + NumericCast<int64_t>(saved_suggestion_size),
@@ -196,7 +256,7 @@ public:
 			}
 			results.push_back(*child_result);
 		}
-		state.SyncPosition(list_state);
+		state.token_index = list_state.token_index;
 		// Empty name implies it's a subrule, e.g. 'SET'i (StandardAssignment / SetTimeZone)
 		return state.allocator.Allocate(make_uniq<ListParseResult>(std::move(results), name, start_offset));
 	}
@@ -249,7 +309,7 @@ public:
 			return MatchResultType::SUCCESS;
 		}
 		// propagate the child state upwards
-		state.SyncPosition(child_state);
+		state.token_index = child_state.token_index;
 		return MatchResultType::SUCCESS;
 	}
 
@@ -265,7 +325,7 @@ public:
 			return state.allocator.Allocate(make_uniq<OptionalParseResult>());
 		}
 		// propagate the child state upwards
-		state.SyncPosition(child_state);
+		state.token_index = child_state.token_index;
 		return state.allocator.Allocate(make_uniq<OptionalParseResult>(child_match, start_offset));
 	}
 
@@ -298,7 +358,7 @@ public:
 			auto child_result = child_matcher.get().Match(choice_state);
 			if (child_result != MatchResultType::FAIL) {
 				// we matched this child - propagate upwards
-				state.SyncPosition(choice_state);
+				state.token_index = choice_state.token_index;
 				return child_result;
 			}
 		}
@@ -315,7 +375,7 @@ public:
 			auto child_result = matchers[i].get().MatchParseResult(choice_state);
 			if (child_result != nullptr) {
 				// we matched this child - propagate upwards
-				state.SyncPosition(choice_state);
+				state.token_index = choice_state.token_index;
 				auto result = state.allocator.Allocate(make_uniq<ChoiceParseResult>(*child_result, i, start_offset));
 				return result;
 			}
@@ -366,7 +426,7 @@ public:
 		// now we can keep on repeating the matching (optionally)
 		while (true) {
 			// update the token index we propagate upwards
-			state.SyncPosition(repeat_state);
+			state.token_index = repeat_state.token_index;
 
 			bool at_autocomplete_cursor =
 			    repeat_state.token_index < state.tokens.size() &&
@@ -406,7 +466,7 @@ public:
 		// Now, we continue matching the element as many times as possible.
 		while (true) {
 			// Propagate the new state upwards.
-			state.SyncPosition(repeat_state);
+			state.token_index = repeat_state.token_index;
 
 			if (repeat_state.token_index < state.tokens.size() &&
 			    state.tokens[repeat_state.token_index].type == TokenType::END_OF_INPUT_AUTOCOMPLETE) {
@@ -1060,7 +1120,8 @@ public:
 	}
 
 	MatchResultType Match(MatchState &state) const override {
-		if (!MatchOperator(state)) {
+		string matched_text;
+		if (!MatchOperator(state, matched_text)) {
 			return MatchResultType::FAIL;
 		}
 		return MatchResultType::SUCCESS;
@@ -1070,12 +1131,12 @@ public:
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
-		auto &token_text = state.tokens[state.token_index].text;
 		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
-		if (!MatchOperator(state)) {
+		string matched_text;
+		if (!MatchOperator(state, matched_text)) {
 			return nullptr;
 		}
-		return state.allocator.Allocate(make_uniq<OperatorParseResult>(token_text, start_offset));
+		return state.allocator.Allocate(make_uniq<OperatorParseResult>(std::move(matched_text), start_offset));
 	}
 
 	SuggestionType AddSuggestionInternal(MatchState &state) const override {
@@ -1087,11 +1148,28 @@ public:
 	}
 
 private:
-	static bool MatchOperator(MatchState &state) {
-		if (state.token_index >= state.tokens.size()) {
+	//! Match the maximal glued run of operator tokens as one operator (the tokenizer splits
+	//! '>'-led runs; the full run is what the source spelled as a single operator).
+	static bool MatchOperator(MatchState &state, string &matched_text) {
+		if (state.token_index >= state.tokens.size() || !IsGluedOperatorToken(state.tokens[state.token_index])) {
 			return false;
 		}
-		auto &token_text = state.tokens[state.token_index].text;
+		idx_t run_length = 1;
+		matched_text = state.tokens[state.token_index].text;
+		while (state.token_index + run_length < state.tokens.size() &&
+		       ContinuesOperatorRun(state.tokens, state.token_index + run_length)) {
+			matched_text += state.tokens[state.token_index + run_length].text;
+			run_length++;
+		}
+		if (!MatchesOperatorText(matched_text)) {
+			return false;
+		}
+		state.token_index += run_length;
+		state.UpdateMaxTokenIndex();
+		return true;
+	}
+
+	static bool MatchesOperatorText(const string &token_text) {
 		// Exclude the lambda arrow and JSON arrow — these have dedicated grammar roles
 		if (token_text == "->" || token_text == "->>") {
 			return false;
@@ -1115,8 +1193,6 @@ private:
 				return false;
 			}
 		}
-		state.token_index++;
-		state.UpdateMaxTokenIndex();
 		return true;
 	}
 };
@@ -1173,9 +1249,11 @@ private:
 	}
 };
 
-//! Matches a single '>' closing an angle-bracket type. A run of '>' (e.g. '>>' / '>>>') is
-//! tokenized as one operator token; this consumes one '>' at a time from such a run so adjacent
-//! closers in nested types (array<array<int>>) resolve without requiring a space between them.
+//! Matches a single '>' token closing an angle-bracket type. The tokenizer splits '>'-led operator
+//! runs into individual '>' tokens (keeping a trailing '>=' glued), so nested closers in
+//! array<array<int>> arrive as separate tokens. Expression operators ('>>', '>>=') are re-glued by
+//! the run-aware keyword/operator matchers; this matcher deliberately takes exactly one '>' token,
+//! ignoring run adjacency.
 class CloseAngleBracketMatcher : public Matcher {
 public:
 	static constexpr MatcherType TYPE = MatcherType::KEYWORD;
@@ -1195,9 +1273,7 @@ public:
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
-		// offset of the specific '>' this call consumes within the (possibly multi-'>') token
-		auto start_offset =
-		    optional_idx(state.tokens[state.token_index].offset + state.close_angle_brackets_consumed);
+		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
 		if (!MatchClose(state)) {
 			return nullptr;
 		}
@@ -1215,34 +1291,15 @@ public:
 	}
 
 private:
-	//! true if the token is a non-empty run consisting solely of '>'
-	static bool IsGreaterRun(const string &text) {
-		if (text.empty()) {
-			return false;
-		}
-		for (auto &c : text) {
-			if (c != '>') {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	static bool MatchClose(MatchState &state) {
 		if (state.token_index >= state.tokens.size()) {
 			return false;
 		}
-		auto &token = state.tokens[state.token_index];
-		if (!IsGreaterRun(token.text)) {
+		if (state.tokens[state.token_index].text != ">") {
 			return false;
 		}
-		// consume one '>' from the run; only advance past the token once the run is exhausted
-		state.close_angle_brackets_consumed++;
-		if (state.close_angle_brackets_consumed >= token.text.size()) {
-			state.close_angle_brackets_consumed = 0;
-			state.token_index++;
-			state.UpdateMaxTokenIndex();
-		}
+		state.token_index++;
+		state.UpdateMaxTokenIndex();
 		return true;
 	}
 };
