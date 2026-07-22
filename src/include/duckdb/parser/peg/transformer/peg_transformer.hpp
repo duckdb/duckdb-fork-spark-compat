@@ -8092,7 +8092,7 @@ public:
 	                                                            unique_ptr<ParsedExpression> expression);
 	static unique_ptr<TransformResultValue> TransformNamedParameterInternal(PEGTransformer &transformer,
 	                                                                        ParseResult &parse_result);
-	static MacroParameter TransformNamedParameter(PEGTransformer &transformer, const Identifier &type_func_name,
+	static MacroParameter TransformNamedParameter(PEGTransformer &transformer, const Identifier &reserved_identifier,
 	                                              const optional<LogicalType> &type,
 	                                              unique_ptr<ParsedExpression> expression);
 	static unique_ptr<TransformResultValue> TransformTableAliasInternal(PEGTransformer &transformer,

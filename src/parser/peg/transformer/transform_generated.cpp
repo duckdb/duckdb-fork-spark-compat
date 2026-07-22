@@ -9426,7 +9426,7 @@ PEGTransformerFactory::TransformPositionalFunctionArgumentInternal(PEGTransforme
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformNamedParameterInternal(PEGTransformer &transformer,
                                                                                         ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
-	auto type_func_name = transformer.Transform<Identifier>(list_pr.GetChild(0));
+	auto reserved_identifier = list_pr.GetChild(0).Cast<IdentifierParseResult>().identifier;
 	optional<LogicalType> type {};
 	auto &type_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
 	if (type_opt.HasResult()) {
@@ -9434,7 +9434,7 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformNamedParameterI
 		type = type_value;
 	}
 	auto expression = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(3));
-	auto result = TransformNamedParameter(transformer, type_func_name, type, std::move(expression));
+	auto result = TransformNamedParameter(transformer, reserved_identifier, type, std::move(expression));
 	return make_uniq<TypedTransformResult<MacroParameter>>(std::move(result));
 }
 

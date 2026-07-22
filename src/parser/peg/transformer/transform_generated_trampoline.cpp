@@ -22245,25 +22245,25 @@ PEGTransformerFactory::FinalizePositionalFunctionArgumentTrampoline(PEGTransform
 void PEGTransformerFactory::InitializeNamedParameterTrampoline(PEGTransformer &transformer, TransformStack &stack,
                                                                TransformStackFrame &frame) {
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
-	frame.ReserveChildSlots(3);
-	stack.PushFrame(list_pr.GetChild(3), EXPRESSION_OPS, TransformFrameResultTarget(frame.frame_index, 2));
+	frame.ReserveChildSlots(2);
+	stack.PushFrame(list_pr.GetChild(3), EXPRESSION_OPS, TransformFrameResultTarget(frame.frame_index, 1));
 	auto &type_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
 	if (type_opt.HasResult()) {
-		stack.PushFrame(type_opt.GetResult(), TYPE_OPS, TransformFrameResultTarget(frame.frame_index, 1));
+		stack.PushFrame(type_opt.GetResult(), TYPE_OPS, TransformFrameResultTarget(frame.frame_index, 0));
 	}
-	stack.PushFrame(list_pr.GetChild(0), TYPE_FUNC_NAME_OPS, TransformFrameResultTarget(frame.frame_index, 0));
 }
 
 unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeNamedParameterTrampoline(PEGTransformer &transformer,
                                                                                          TransformStack &stack,
                                                                                          TransformStackFrame &frame) {
-	auto type_func_name = frame.TakeResult<Identifier>(0);
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto reserved_identifier = list_pr.GetChild(0).Cast<IdentifierParseResult>().identifier;
 	optional<LogicalType> type {};
-	if (frame.child_results[1]) {
-		type = frame.TakeResult<LogicalType>(1);
+	if (frame.child_results[0]) {
+		type = frame.TakeResult<LogicalType>(0);
 	}
-	auto expression = frame.TakeResult<unique_ptr<ParsedExpression>>(2);
-	auto result = TransformNamedParameter(transformer, type_func_name, type, std::move(expression));
+	auto expression = frame.TakeResult<unique_ptr<ParsedExpression>>(1);
+	auto result = TransformNamedParameter(transformer, reserved_identifier, type, std::move(expression));
 	return make_uniq<TypedTransformResult<MacroParameter>>(std::move(result));
 }
 

@@ -88,7 +88,9 @@ TableFunctionArguments <- Parens(List(FunctionArgument)?)
 FunctionArgument <- NamedFunctionArgument / PositionalFunctionArgument
 NamedFunctionArgument <- NamedParameter
 PositionalFunctionArgument <- Expression
-NamedParameter <- TypeFuncName Type? NamedParameterAssignment Expression
+# Spark permits (nearly) any word as a named-argument name, e.g. count_min_sketch(column => x):
+# ReservedIdentifier accepts reserved keywords like COLUMN that TypeFuncName rejects.
+NamedParameter <- ReservedIdentifier Type? NamedParameterAssignment Expression
 NamedParameterAssignment <- ':=' / '=>'
 
 TableAlias <- TableAliasAs / TableAliasWithoutAs
