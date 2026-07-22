@@ -6,6 +6,7 @@ Statement <-
 	CreateStatement /
 	SelectStatement /
 	SetStatement /
+	ReadSettingStatement /
 	PragmaStatement /
 	CallStatement /
 	InsertStatement /

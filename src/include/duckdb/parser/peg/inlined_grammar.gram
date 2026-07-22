@@ -6,6 +6,7 @@ Statement <-
 	CreateStatement /
 	SelectStatement /
 	SetStatement /
+	ReadSettingStatement /
 	PragmaStatement /
 	CallStatement /
 	InsertStatement /
@@ -1122,7 +1123,7 @@ TruncateStatement <- 'TRUNCATE' 'TABLE'? BaseTableName
 TargetOptAlias <- BaseTableName 'AS'? ColId?
 DeleteUsingClause <- 'USING' List(TableRef)
 
-DescribeStatement <- ShowTables / ShowAllTables / DescribeQuery / DescribeTable / ShowSelect / ShowQualifiedName
+DescribeStatement <- ShowTables / ShowAllTables / DescribeQuery / DescribeFunction / DescribeTable / ShowSelect / ShowQualifiedName
 
 ShowSelect <- ShowOrDescribeOrSummarize SelectStatementInternal
 ShowAllTables <- ShowOrDescribe 'ALL' 'TABLES'
@@ -1130,6 +1131,9 @@ ShowAllTables <- ShowOrDescribe 'ALL' 'TABLES'
 # DescribeTable consumes QUERY as a table name (QUERY is not a reserved keyword). The no-QUERY form, DESC <query>,
 # falls through to ShowSelect. Both are routed to spark_describe_query by the transformer.
 DescribeQuery <- DescribeRule 'QUERY' SelectStatementInternal
+# Spark's { DESC | DESCRIBE } FUNCTION [EXTENDED] <name>. Must precede DescribeTable, otherwise DescribeTable
+# consumes FUNCTION as a table name. Routed to spark_describe_function[_extended] by the transformer.
+DescribeFunction <- DescribeRule 'FUNCTION' 'EXTENDED'? FunctionIdentifier
 # Spark's { DESC | DESCRIBE } [TABLE] [EXTENDED | FORMATTED] <table>. Ordered after ShowAllTables (so
 # DESCRIBE ALL TABLES wins) and before ShowSelect (so DESCRIBE TABLE t1 is not parsed as the TABLE t1 select).
 DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget PartitionSpec?
@@ -1298,6 +1302,8 @@ TypeLiteral <- ColId StringLiteral
 IntervalLiteral <- 'INTERVAL' IntervalParameter Interval?
 IntervalParameter <- IntervalStringParameter / NumberLiteral / ParensExpression
 IntervalStringParameter <- StringLiteral
+IntervalMultiUnitLiteral <- 'INTERVAL' IntervalUnitPair IntervalUnitPair+
+IntervalUnitPair <- NumberLiteral Interval
 FrameClause <- Framing FrameExtent WindowExcludeClause?
 Framing <- RowsFraming / RangeFraming / GroupsFraming
 RowsFraming <- 'ROWS'
@@ -1364,6 +1370,7 @@ SingleExpression <-
     SubqueryExpression /
     SpecialFunctionExpression /
     ParenthesisExpression /
+    IntervalMultiUnitLiteral /
     IntervalLiteral /
     TypeLiteral /
     CaseExpression /
@@ -1892,6 +1899,9 @@ ValuesExpressions <- Parens(List(RowExpressionArg))
 
 SetStatement <- 'SET' SetAssignmentOrTimeZone
 SetAssignmentOrTimeZone <- StandardAssignment / SetTimeZone
+
+# Spark's value-less SET reads (gets) a config value instead of assigning one
+ReadSettingStatement <- 'SET' SetVariableOrSetting
 
 ResetStatement <- 'RESET' SetVariableOrSetting
 StandardAssignment <- SetVariableOrSetting SetAssignment

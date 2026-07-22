@@ -10,6 +10,19 @@
 namespace duckdb_fork {
 using namespace duckdb;
 
+// Build `SELECT * FROM <function_name>(<argument>)` — the shape every DESCRIBE form is rerouted into.
+static unique_ptr<QueryNode> MakeDescribeSelect(const string &function_name, Value argument) {
+	vector<unique_ptr<ParsedExpression>> children;
+	children.push_back(make_uniq<ConstantExpression>(std::move(argument)));
+	auto table_function = make_uniq<TableFunctionRef>();
+	table_function->function = make_uniq<FunctionExpression>(Identifier(function_name), std::move(children));
+
+	auto select_node = make_uniq<SelectNode>();
+	select_node->select_list.push_back(make_uniq<StarExpression>());
+	select_node->from_table = std::move(table_function);
+	return std::move(select_node);
+}
+
 // Spark's DESCRIBE [TABLE] [EXTENDED|FORMATTED] is rerouted into a SELECT over an extension-registered table
 // function (spark_describe / spark_describe_extended) producing the (col_name, data_type, comment) output.
 static unique_ptr<QueryNode> BuildDescribeSelect(const DescribeTarget &describe_target, const string &function_name) {
@@ -29,16 +42,7 @@ static unique_ptr<QueryNode> BuildDescribeSelect(const DescribeTarget &describe_
 	} else {
 		throw ParserException("DESCRIBE requires a table or view name");
 	}
-
-	vector<unique_ptr<ParsedExpression>> children;
-	children.push_back(make_uniq<ConstantExpression>(Value(target_name)));
-	auto table_function = make_uniq<TableFunctionRef>();
-	table_function->function = make_uniq<FunctionExpression>(Identifier(function_name), std::move(children));
-
-	auto select_node = make_uniq<SelectNode>();
-	select_node->select_list.push_back(make_uniq<StarExpression>());
-	select_node->from_table = std::move(table_function);
-	return std::move(select_node);
+	return MakeDescribeSelect(function_name, Value(target_name));
 }
 
 // Spark's DESCRIBE [QUERY] <query> is rerouted into a SELECT over the extension-registered spark_describe_query
@@ -48,15 +52,14 @@ static unique_ptr<QueryNode> BuildDescribeQuerySelect(unique_ptr<SelectStatement
 	// lossy: e.g. a DOUBLE literal like 10.00D renders as "10.0", which re-parses as DECIMAL.)
 	MemoryStream stream;
 	BinarySerializer::Serialize(*select_statement->node, stream);
-	vector<unique_ptr<ParsedExpression>> children;
-	children.push_back(make_uniq<ConstantExpression>(Value::BLOB(stream.GetData(), stream.GetPosition())));
-	auto table_function = make_uniq<TableFunctionRef>();
-	table_function->function = make_uniq<FunctionExpression>(Identifier("spark_describe_query"), std::move(children));
+	return MakeDescribeSelect("spark_describe_query", Value::BLOB(stream.GetData(), stream.GetPosition()));
+}
 
-	auto select_node = make_uniq<SelectNode>();
-	select_node->select_list.push_back(make_uniq<StarExpression>());
-	select_node->from_table = std::move(table_function);
-	return std::move(select_node);
+// Spark's DESCRIBE FUNCTION [EXTENDED] <name> is rerouted into a SELECT over the extension-registered
+// spark_describe_function[_extended] table function, which prints the function's metadata.
+static unique_ptr<QueryNode> BuildDescribeFunctionSelect(const QualifiedName &function_name, bool extended) {
+	string function_id = extended ? "spark_describe_function_extended" : "spark_describe_function";
+	return MakeDescribeSelect(function_id, Value(function_name.Name().GetIdentifierName()));
 }
 
 // DescribeStatement <- ShowTables / ShowAllTables / DescribeQuery / DescribeTable / ShowSelect / ShowQualifiedName
@@ -232,6 +235,13 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeTable(PEGTransform
 // Hand-written (referenced by DescribeStatement, which the generator skips).
 unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeQuery(PEGTransformer &transformer, const ShowType &describe_rule, unique_ptr<SelectStatement> select_statement_internal) {
 	return BuildDescribeQuerySelect(std::move(select_statement_internal));
+}
+
+// DescribeFunction <- DescribeRule 'FUNCTION' 'EXTENDED'? FunctionIdentifier
+// Hand-written (referenced by DescribeStatement, which the generator skips).
+unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribeFunction(PEGTransformer &transformer, const ShowType &describe_rule, const bool &has_result, const QualifiedName &function_identifier) {
+	bool extended = has_result;
+	return BuildDescribeFunctionSelect(function_identifier, extended);
 }
 
 } // namespace duckdb_fork

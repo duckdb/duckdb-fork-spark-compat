@@ -1066,6 +1066,9 @@ static const TransformFrameOps SHOW_ALL_TABLES_OPS = {"ShowAllTables",
 static const TransformFrameOps DESCRIBE_QUERY_OPS = {"DescribeQuery",
                                                      &PEGTransformerFactory::InitializeDescribeQueryTrampoline,
                                                      &PEGTransformerFactory::FinalizeDescribeQueryTrampoline};
+static const TransformFrameOps DESCRIBE_FUNCTION_OPS = {"DescribeFunction",
+                                                        &PEGTransformerFactory::InitializeDescribeFunctionTrampoline,
+                                                        &PEGTransformerFactory::FinalizeDescribeFunctionTrampoline};
 static const TransformFrameOps DESCRIBE_TABLE_OPS = {"DescribeTable",
                                                      &PEGTransformerFactory::InitializeDescribeTableTrampoline,
                                                      &PEGTransformerFactory::FinalizeDescribeTableTrampoline};
@@ -1401,6 +1404,12 @@ static const TransformFrameOps INTERVAL_PARAMETER_OPS = {"IntervalParameter",
 static const TransformFrameOps INTERVAL_STRING_PARAMETER_OPS = {
     "IntervalStringParameter", &PEGTransformerFactory::InitializeIntervalStringParameterTrampoline,
     &PEGTransformerFactory::FinalizeIntervalStringParameterTrampoline};
+static const TransformFrameOps INTERVAL_MULTI_UNIT_LITERAL_OPS = {
+    "IntervalMultiUnitLiteral", &PEGTransformerFactory::InitializeIntervalMultiUnitLiteralTrampoline,
+    &PEGTransformerFactory::FinalizeIntervalMultiUnitLiteralTrampoline};
+static const TransformFrameOps INTERVAL_UNIT_PAIR_OPS = {"IntervalUnitPair",
+                                                         &PEGTransformerFactory::InitializeIntervalUnitPairTrampoline,
+                                                         &PEGTransformerFactory::FinalizeIntervalUnitPairTrampoline};
 static const TransformFrameOps FRAME_CLAUSE_OPS = {"FrameClause",
                                                    &PEGTransformerFactory::InitializeFrameClauseTrampoline,
                                                    &PEGTransformerFactory::FinalizeFrameClauseTrampoline};
@@ -2700,6 +2709,9 @@ static const TransformFrameOps SET_STATEMENT_OPS = {"SetStatement",
 static const TransformFrameOps SET_ASSIGNMENT_OR_TIME_ZONE_OPS = {
     "SetAssignmentOrTimeZone", &PEGTransformerFactory::InitializeSetAssignmentOrTimeZoneTrampoline,
     &PEGTransformerFactory::FinalizeSetAssignmentOrTimeZoneTrampoline};
+static const TransformFrameOps READ_SETTING_STATEMENT_OPS = {
+    "ReadSettingStatement", &PEGTransformerFactory::InitializeReadSettingStatementTrampoline,
+    &PEGTransformerFactory::FinalizeReadSettingStatementTrampoline};
 static const TransformFrameOps RESET_STATEMENT_OPS = {"ResetStatement",
                                                       &PEGTransformerFactory::InitializeResetStatementTrampoline,
                                                       &PEGTransformerFactory::FinalizeResetStatementTrampoline};
@@ -3227,6 +3239,7 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"ShowSelect", &SHOW_SELECT_OPS},
 	    {"ShowAllTables", &SHOW_ALL_TABLES_OPS},
 	    {"DescribeQuery", &DESCRIBE_QUERY_OPS},
+	    {"DescribeFunction", &DESCRIBE_FUNCTION_OPS},
 	    {"DescribeTable", &DESCRIBE_TABLE_OPS},
 	    {"ShowQualifiedName", &SHOW_QUALIFIED_NAME_OPS},
 	    {"ShowTables", &SHOW_TABLES_OPS},
@@ -3343,6 +3356,8 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"IntervalLiteral", &INTERVAL_LITERAL_OPS},
 	    {"IntervalParameter", &INTERVAL_PARAMETER_OPS},
 	    {"IntervalStringParameter", &INTERVAL_STRING_PARAMETER_OPS},
+	    {"IntervalMultiUnitLiteral", &INTERVAL_MULTI_UNIT_LITERAL_OPS},
+	    {"IntervalUnitPair", &INTERVAL_UNIT_PAIR_OPS},
 	    {"FrameClause", &FRAME_CLAUSE_OPS},
 	    {"Framing", &FRAMING_OPS},
 	    {"RowsFraming", &ROWS_FRAMING_OPS},
@@ -3800,6 +3815,7 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"ValuesExpressions", &VALUES_EXPRESSIONS_OPS},
 	    {"SetStatement", &SET_STATEMENT_OPS},
 	    {"SetAssignmentOrTimeZone", &SET_ASSIGNMENT_OR_TIME_ZONE_OPS},
+	    {"ReadSettingStatement", &READ_SETTING_STATEMENT_OPS},
 	    {"ResetStatement", &RESET_STATEMENT_OPS},
 	    {"StandardAssignment", &STANDARD_ASSIGNMENT_OPS},
 	    {"SetVariableOrSetting", &SET_VARIABLE_OR_SETTING_OPS},
@@ -11561,6 +11577,27 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeDescribeQueryTra
 	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
 }
 
+void PEGTransformerFactory::InitializeDescribeFunctionTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                 TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(2);
+	stack.PushFrame(list_pr.GetChild(3), FUNCTION_IDENTIFIER_OPS, TransformFrameResultTarget(frame.frame_index, 1));
+	stack.PushFrame(list_pr.GetChild(0), DESCRIBE_RULE_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeDescribeFunctionTrampoline(PEGTransformer &transformer,
+                                                                                           TransformStack &stack,
+                                                                                           TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto describe_rule = frame.TakeResult<ShowType>(0);
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto function_identifier = frame.TakeResult<QualifiedName>(1);
+	auto result = TransformDescribeFunction(transformer, describe_rule, has_result, function_identifier);
+	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
+}
+
 void PEGTransformerFactory::InitializeDescribeTableTrampoline(PEGTransformer &transformer, TransformStack &stack,
                                                               TransformStackFrame &frame) {
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
@@ -14015,6 +14052,56 @@ PEGTransformerFactory::FinalizeIntervalStringParameterTrampoline(PEGTransformer 
 	auto string_literal = TransformStringLiteral(transformer, list_pr.GetChild(0));
 	auto result = TransformIntervalStringParameter(transformer, string_literal);
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeIntervalMultiUnitLiteralTrampoline(PEGTransformer &transformer,
+                                                                         TransformStack &stack,
+                                                                         TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto &repeat_pr = list_pr.GetChild(2).Cast<RepeatParseResult>();
+	auto repeat_children = repeat_pr.GetChildren();
+	auto dynamic_child_count = repeat_children.size();
+	frame.ReserveChildSlots(2 + dynamic_child_count - 1);
+	for (idx_t i = repeat_children.size(); i > 0; i--) {
+		auto child_idx = i - 1;
+		stack.PushFrame(repeat_children[child_idx].get(), INTERVAL_UNIT_PAIR_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 1 + child_idx));
+	}
+	stack.PushFrame(list_pr.GetChild(1), INTERVAL_UNIT_PAIR_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizeIntervalMultiUnitLiteralTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                  TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto &dynamic_repeat_pr = list_pr.GetChild(2).Cast<RepeatParseResult>();
+	auto dynamic_repeat_children = dynamic_repeat_pr.GetChildren();
+	auto dynamic_child_count = dynamic_repeat_children.size();
+	auto interval_unit_pair = frame.TakeResult<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>(0);
+	vector<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>> interval_unit_pair_1;
+	for (idx_t i = 1; i < 1 + dynamic_child_count; i++) {
+		interval_unit_pair_1.push_back(frame.TakeResult<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>(i));
+	}
+	auto result =
+	    TransformIntervalMultiUnitLiteral(transformer, std::move(interval_unit_pair), std::move(interval_unit_pair_1));
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeIntervalUnitPairTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                 TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(1), INTERVAL_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeIntervalUnitPairTrampoline(PEGTransformer &transformer,
+                                                                                           TransformStack &stack,
+                                                                                           TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto number_literal = TransformNumberLiteral(transformer, list_pr.GetChild(0));
+	auto interval = frame.TakeResult<DatePartSpecifier>(0);
+	auto result = TransformIntervalUnitPair(transformer, std::move(number_literal), interval);
+	return make_uniq<TypedTransformResult<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>>(std::move(result));
 }
 
 void PEGTransformerFactory::InitializeFrameClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
@@ -23433,6 +23520,21 @@ PEGTransformerFactory::FinalizeSetAssignmentOrTimeZoneTrampoline(PEGTransformer 
                                                                  TransformStackFrame &frame) {
 	auto result = frame.TakeResult<unique_ptr<SetStatement>>(0);
 	return make_uniq<TypedTransformResult<unique_ptr<SetStatement>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeReadSettingStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                     TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(1), SET_VARIABLE_OR_SETTING_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizeReadSettingStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                              TransformStackFrame &frame) {
+	auto set_variable_or_setting = frame.TakeResult<SettingInfo>(0);
+	auto result = TransformReadSettingStatement(transformer, set_variable_or_setting);
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 
 void PEGTransformerFactory::InitializeResetStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,

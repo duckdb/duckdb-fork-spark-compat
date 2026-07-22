@@ -3951,6 +3951,18 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeQueryIn
 	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeFunctionInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto describe_rule = transformer.Transform<ShowType>(list_pr.GetChild(0));
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto function_identifier = transformer.Transform<QualifiedName>(list_pr.GetChild(3));
+	auto result = TransformDescribeFunction(transformer, describe_rule, has_result, function_identifier);
+	return make_uniq<TypedTransformResult<unique_ptr<QueryNode>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformDescribeTableInternal(PEGTransformer &transformer,
                                                                                        ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -5226,6 +5238,33 @@ PEGTransformerFactory::TransformIntervalStringParameterInternal(PEGTransformer &
 	auto string_literal = transformer.Transform<string>(list_pr.GetChild(0));
 	auto result = TransformIntervalStringParameter(transformer, string_literal);
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformIntervalMultiUnitLiteralInternal(PEGTransformer &transformer,
+                                                                 ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto interval_unit_pair =
+	    transformer.Transform<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>(list_pr.GetChild(1));
+	vector<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>> interval_unit_pair_1;
+	auto &interval_unit_pair_1_repeat = list_pr.GetChild(2).Cast<RepeatParseResult>();
+	for (auto &interval_unit_pair_1_item : interval_unit_pair_1_repeat.GetChildren()) {
+		auto interval_unit_pair_1_value = transformer.Transform<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>(
+		    interval_unit_pair_1_item.get());
+		interval_unit_pair_1.push_back(std::move(interval_unit_pair_1_value));
+	}
+	auto result =
+	    TransformIntervalMultiUnitLiteral(transformer, std::move(interval_unit_pair), std::move(interval_unit_pair_1));
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformIntervalUnitPairInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto number_literal = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(0));
+	auto interval = transformer.Transform<DatePartSpecifier>(list_pr.GetChild(1));
+	auto result = TransformIntervalUnitPair(transformer, std::move(number_literal), interval);
+	return make_uniq<TypedTransformResult<pair<unique_ptr<ParsedExpression>, DatePartSpecifier>>>(std::move(result));
 }
 
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformFrameClauseInternal(PEGTransformer &transformer,
@@ -10056,6 +10095,14 @@ PEGTransformerFactory::TransformSetAssignmentOrTimeZoneInternal(PEGTransformer &
 	return make_uniq<TypedTransformResult<unique_ptr<SetStatement>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformReadSettingStatementInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto set_variable_or_setting = transformer.Transform<SettingInfo>(list_pr.GetChild(1));
+	auto result = TransformReadSettingStatement(transformer, set_variable_or_setting);
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformResetStatementInternal(PEGTransformer &transformer,
                                                                                         ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -11006,6 +11053,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ShowSelect", &PEGTransformerFactory::TransformShowSelectInternal},
 	    {"ShowAllTables", &PEGTransformerFactory::TransformShowAllTablesInternal},
 	    {"DescribeQuery", &PEGTransformerFactory::TransformDescribeQueryInternal},
+	    {"DescribeFunction", &PEGTransformerFactory::TransformDescribeFunctionInternal},
 	    {"DescribeTable", &PEGTransformerFactory::TransformDescribeTableInternal},
 	    {"ShowQualifiedName", &PEGTransformerFactory::TransformShowQualifiedNameInternal},
 	    {"ShowTables", &PEGTransformerFactory::TransformShowTablesInternal},
@@ -11123,6 +11171,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"IntervalLiteral", &PEGTransformerFactory::TransformIntervalLiteralInternal},
 	    {"IntervalParameter", &PEGTransformerFactory::TransformIntervalParameterInternal},
 	    {"IntervalStringParameter", &PEGTransformerFactory::TransformIntervalStringParameterInternal},
+	    {"IntervalMultiUnitLiteral", &PEGTransformerFactory::TransformIntervalMultiUnitLiteralInternal},
+	    {"IntervalUnitPair", &PEGTransformerFactory::TransformIntervalUnitPairInternal},
 	    {"FrameClause", &PEGTransformerFactory::TransformFrameClauseInternal},
 	    {"Framing", &PEGTransformerFactory::TransformFramingInternal},
 	    {"RowsFraming", &PEGTransformerFactory::TransformRowsFramingInternal},
@@ -11570,6 +11620,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ValuesExpressions", &PEGTransformerFactory::TransformValuesExpressionsInternal},
 	    {"SetStatement", &PEGTransformerFactory::TransformSetStatementInternal},
 	    {"SetAssignmentOrTimeZone", &PEGTransformerFactory::TransformSetAssignmentOrTimeZoneInternal},
+	    {"ReadSettingStatement", &PEGTransformerFactory::TransformReadSettingStatementInternal},
 	    {"ResetStatement", &PEGTransformerFactory::TransformResetStatementInternal},
 	    {"StandardAssignment", &PEGTransformerFactory::TransformStandardAssignmentInternal},
 	    {"SetVariableOrSetting", &PEGTransformerFactory::TransformSetVariableOrSettingInternal},
