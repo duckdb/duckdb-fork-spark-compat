@@ -482,6 +482,12 @@ public:
 					case '\'':
 						escaped_result += '\'';
 						break;
+					case '%':
+						escaped_result += "\\%";
+						break;
+					case '_':
+						escaped_result += "\\_";
+						break;
 					default:
 						escaped_result += result[i];
 						break;

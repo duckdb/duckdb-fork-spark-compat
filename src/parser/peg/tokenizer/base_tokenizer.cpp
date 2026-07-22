@@ -239,6 +239,7 @@ bool BaseTokenizer::TokenizeInputInternal() {
 	idx_t last_pos = 0;
 	string dollar_quote_marker;
 	idx_t dollar_marker_start = 0;
+	idx_t comment_depth = 0;
 	for (idx_t i = 0; i < sql.size(); i++) {
 		auto c = sql[i];
 		switch (state) {
@@ -305,6 +306,7 @@ bool BaseTokenizer::TokenizeInputInternal() {
 			}
 			if (c == '/' && i + 1 < sql.size() && sql[i + 1] == '*') {
 				i++;
+				comment_depth = 1;
 				state = TokenizeState::MULTI_LINE_COMMENT;
 				break;
 			}
@@ -413,7 +415,7 @@ bool BaseTokenizer::TokenizeInputInternal() {
 						end_pos--;
 					}
 				}
-				PushToken(last_pos, end_pos, TokenType::OPERATOR);
+				PushOperatorToken(last_pos, end_pos);
 				// Push any trimmed '+' characters as individual tokens
 				for (idx_t j = end_pos; j < i; j++) {
 					tokens.emplace_back(string(1, sql[j]), j, TokenType::OPERATOR);
@@ -437,6 +439,11 @@ bool BaseTokenizer::TokenizeInputInternal() {
 			}
 			break;
 		case TokenizeState::STRING_LITERAL:
+			if (c == '\\' && i + 1 < sql.size()) {
+				// a backslash escapes the next character, so an escaped quote does not close the string
+				i++;
+				break;
+			}
 			if (c == '\'') {
 				if (i + 1 < sql.size() && sql[i + 1] == '\'') {
 					// escaped - skip escape
@@ -468,11 +475,19 @@ bool BaseTokenizer::TokenizeInputInternal() {
 			}
 			break;
 		case TokenizeState::MULTI_LINE_COMMENT:
-			if (c == '*' && i + 1 < sql.size() && sql[i + 1] == '/') {
+			if (c == '/' && i + 1 < sql.size() && sql[i + 1] == '*') {
+				// nested comment open - consume both chars and increase depth
 				i++;
-				PushToken(last_pos, i + 1, TokenType::COMMENT);
-				last_pos = i + 1;
-				state = TokenizeState::STANDARD;
+				comment_depth++;
+			} else if (c == '*' && i + 1 < sql.size() && sql[i + 1] == '/') {
+				// comment close - consume both chars and decrease depth
+				i++;
+				comment_depth--;
+				if (comment_depth == 0) {
+					PushToken(last_pos, i + 1, TokenType::COMMENT);
+					last_pos = i + 1;
+					state = TokenizeState::STANDARD;
+				}
 			}
 			break;
 		case TokenizeState::DOLLAR_QUOTED_STRING: {
@@ -536,12 +551,31 @@ bool BaseTokenizer::TokenizeInputInternal() {
 	return true;
 }
 
+void BaseTokenizer::PushOperatorToken(idx_t start, idx_t end) {
+	// Split leading '>' chars into individual tokens so angle-bracket type closers can consume them
+	// one at a time (array<array<int>>), keeping a final '>=' glued (it is a comparison operator,
+	// never a closer - mirroring Spark's lexer). The matchers re-glue offset-adjacent pieces, so
+	// expression operators ('>>', '>>>', '>>=') still match as if the run were one token.
+	idx_t pos = start;
+	while (pos < end && sql[pos] == '>' && !(end - pos == 2 && sql[pos + 1] == '=')) {
+		PushToken(pos, pos + 1, TokenType::OPERATOR);
+		pos++;
+	}
+	if (pos < end) {
+		PushToken(pos, end, TokenType::OPERATOR);
+	}
+}
+
 void BaseTokenizer::OnStatementEnd(idx_t pos) {
 	// Default: Do nothing
 }
 
 void BaseTokenizer::OnLastToken(TokenizeState state, string last_word, idx_t last_pos) {
 	if (last_word.empty()) {
+		return;
+	}
+	if (state == TokenizeState::OPERATOR) {
+		PushOperatorToken(last_pos, last_pos + last_word.size());
 		return;
 	}
 	if (state == TokenizeState::KEYWORD) {

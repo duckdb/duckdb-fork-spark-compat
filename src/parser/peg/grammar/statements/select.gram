@@ -175,7 +175,7 @@ AscendingOrder <- 'ASC' / 'ASCENDING'
 NullsFirstOrLast <- NullsFirst / NullsLast
 NullsFirst <- 'NULLS' 'FIRST'
 NullsLast <- 'NULLS' 'LAST'
-OrderByClause <- 'ORDER' 'BY' OrderByExpressions
+OrderByClause <- ('ORDER' / 'SORT') 'BY' OrderByExpressions
 OrderByExpressions <- OrderByExpressionList / OrderByAll
 OrderByExpressionList <- List(OrderByExpression)
 OrderByAll <- 'ALL' DescOrAsc? NullsFirstOrLast?

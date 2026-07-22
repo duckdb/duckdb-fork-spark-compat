@@ -10,7 +10,9 @@ CreateTableStmt <- 'TABLE' IfNotExists? QualifiedName CreateTableDefinition Comm
 CreateTableDefinition <- CreateTableAs / CreateColumnList
 SparkUsing <- 'USING' Identifier SparkLocation?
 SparkLocation <- 'LOCATION' StringLiteral
-CreateTableAs <- SparkUsing? IdentifierList? PartitionSortedOptions? WithList? 'AS' Statement WithData?
+# Spark's table-level COMMENT clause. ColIdOrString accepts both 'text' and spark's double-quoted "text".
+SparkTableComment <- 'COMMENT' ColIdOrString
+CreateTableAs <- SparkUsing? IdentifierList? PartitionSortedOptions? SparkTableComment? WithList? 'AS' Statement WithData?
 PartitionSortedOptions <- PartitionOptSortedOptions / SortedOptPartitionOptions
 PartitionOptSortedOptions <- PartitionOptions SortedOptions?
 SortedOptPartitionOptions <- SortedOptions PartitionOptions?
@@ -22,7 +24,7 @@ WithData <- WithDataOnly / WithNoData
 WithDataOnly <- 'WITH' 'DATA'
 WithNoData <- 'WITH' 'NO' 'DATA'
 IdentifierList <- Parens(List(Identifier))
-CreateColumnList <- Parens(CreateTableColumnList?) SparkUsing? PartitionSortedOptions? WithList?
+CreateColumnList <- Parens(CreateTableColumnList?) SparkUsing? PartitionSortedOptions? SparkTableComment? WithList?
 IfNotExists <- 'IF' 'NOT' 'EXISTS'
 QualifiedName <- CatalogReservedSchemaIdentifier / SchemaReservedIdentifierOrStringLiteral / IdentifierOrStringLiteral
 SchemaReservedIdentifierOrStringLiteral <- SchemaQualification ReservedIdentifierOrStringLiteral

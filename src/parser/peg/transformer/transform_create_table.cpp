@@ -69,6 +69,7 @@ unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreateTableStmt(
 	info->columns = std::move(create_table_definition.columns);
 	info->constraints = std::move(create_table_definition.constraints);
 	info->options = std::move(create_table_definition.options);
+	info->comment = std::move(create_table_definition.comment);
 	// PARTITIONED BY and SORTED BY are parsed but ignored — the duckdb catalog rejects partition/sort keys,
 	// while spark DDL that uses them must still succeed.
 
@@ -79,6 +80,7 @@ unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreateTableStmt(
 CreateTableDefinition PEGTransformerFactory::TransformCreateTableAs(
     PEGTransformer &transformer, const optional<pair<string, string>> &spark_using,
     optional<ColumnList> identifier_list, optional<PartitionSortedOptions> partition_sorted_options,
+    const optional<string> &spark_table_comment,
     optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list, unique_ptr<SQLStatement> statement,
     const optional<bool> &with_data) {
 	// spark_using (USING <format> [LOCATION <path>]) is parsed for spark compatibility but ignored
@@ -89,6 +91,9 @@ CreateTableDefinition PEGTransformerFactory::TransformCreateTableAs(
 	if (partition_sorted_options) {
 		result.partition_keys = std::move(partition_sorted_options->partition_keys);
 		result.sort_keys = std::move(partition_sorted_options->sort_keys);
+	}
+	if (spark_table_comment) {
+		result.comment = Value(*spark_table_comment);
 	}
 	if (with_list) {
 		result.options = std::move(*with_list);
@@ -117,6 +122,7 @@ ColumnList PEGTransformerFactory::TransformIdentifierList(PEGTransformer &transf
 CreateTableDefinition PEGTransformerFactory::TransformCreateColumnList(
     PEGTransformer &transformer, optional<ColumnElements> create_table_column_list,
     const optional<pair<string, string>> &spark_using, optional<PartitionSortedOptions> partition_sorted_options,
+    const optional<string> &spark_table_comment,
     optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list) {
 	// spark_using (USING <format> [LOCATION <path>]) is parsed for spark compatibility but ignored
 	if (!create_table_column_list || create_table_column_list->columns.empty()) {
@@ -133,10 +139,19 @@ CreateTableDefinition PEGTransformerFactory::TransformCreateColumnList(
 			result.columns.AddColumn(partition_column.Copy());
 		}
 	}
+	if (spark_table_comment) {
+		result.comment = Value(*spark_table_comment);
+	}
 	if (with_list) {
 		result.options = std::move(*with_list);
 	}
 	return result;
+}
+
+// SparkTableComment <- 'COMMENT' ColIdOrString
+string PEGTransformerFactory::TransformSparkTableComment(PEGTransformer &transformer,
+                                                         const Identifier &col_id_or_string) {
+	return col_id_or_string.GetIdentifierName();
 }
 
 // SparkUsing <- 'USING' Identifier SparkLocation?

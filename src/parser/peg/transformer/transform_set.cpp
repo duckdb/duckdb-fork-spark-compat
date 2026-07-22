@@ -207,19 +207,39 @@ SetScope PEGTransformerFactory::TransformGlobalScope(PEGTransformer &transformer
 	return SetScope::GLOBAL;
 }
 
-// ZoneIntervalWithInterval <- 'INTERVAL' StringLiteral Interval?
+// Spark's SET TIME ZONE INTERVAL maps a day-time interval to an ICU fixed-offset zone
+// ('GMT±HH:MM:SS'); the extension macro does the formatting.
+static unique_ptr<ParsedExpression> WrapIntervalAsTimezone(unique_ptr<ParsedExpression> interval_expr) {
+	vector<unique_ptr<ParsedExpression>> children;
+	children.push_back(std::move(interval_expr));
+	return make_uniq<FunctionExpression>(Identifier("__spark_interval_timezone"), std::move(children));
+}
+
+// A self-describing interval string literal (e.g. '15:40:32') cast to INTERVAL, then rendered as a zone.
+static unique_ptr<ParsedExpression> WrapIntervalStringAsTimezone(const string &string_literal) {
+	auto expr = make_uniq<CastExpression>(LogicalType::INTERVAL, make_uniq<ConstantExpression>(Value(string_literal)));
+	return WrapIntervalAsTimezone(std::move(expr));
+}
+
+// ZoneIntervalLiteral <- IntervalLiteral
 unique_ptr<ParsedExpression>
-PEGTransformerFactory::TransformZoneIntervalWithInterval(PEGTransformer &transformer, const string &string_literal,
-                                                         const optional<DatePartSpecifier> &interval) {
-	auto expr = make_uniq<ConstantExpression>(Value(string_literal));
-	return make_uniq<CastExpression>(LogicalType::INTERVAL, std::move(expr));
+PEGTransformerFactory::TransformZoneIntervalLiteral(PEGTransformer &transformer,
+                                                    unique_ptr<ParsedExpression> interval_literal) {
+	return WrapIntervalAsTimezone(std::move(interval_literal));
+}
+
+// ZoneIntervalRange <- 'INTERVAL' StringLiteral IntervalToIntervalAsType
+// The string literal (e.g. '15:40:32') is self-describing; the range qualifier is only consumed.
+unique_ptr<ParsedExpression>
+PEGTransformerFactory::TransformZoneIntervalRange(PEGTransformer &transformer, const string &string_literal,
+                                                  const DatePartSpecifier &interval_to_interval_as_type) {
+	return WrapIntervalStringAsTimezone(string_literal);
 }
 
 // ZoneIntervalWithPrecision <- 'INTERVAL' Parens(NumberLiteral) StringLiteral
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformZoneIntervalWithPrecision(
     PEGTransformer &transformer, unique_ptr<ParsedExpression> number_literal, const string &string_literal) {
-	auto expr = make_uniq<ConstantExpression>(Value(string_literal));
-	return make_uniq<CastExpression>(LogicalType::INTERVAL, std::move(expr));
+	return WrapIntervalStringAsTimezone(string_literal);
 }
 
 } // namespace duckdb_fork

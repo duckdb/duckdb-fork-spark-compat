@@ -54,6 +54,7 @@ SQLStatement:
   rules:
     - Statement
     - AlterStatement
+    - SparkAlterTblPropertiesStmt
     - AnalyzeStatement
     - AttachStatement
     - CallStatement
@@ -69,11 +70,13 @@ SQLStatement:
     - CopyTable
     - CreateStatement
     - DeallocateStatement
+    - DeclareStatement
     - DeleteStatement
     - TruncateStatement
     - DetachStatement
     - DisconnectStatement
     - DropStatement
+    - DropVariableStatement
     - ExecuteStatement
     - ExplainStatement
     - ExplainableStatements
@@ -398,6 +401,8 @@ Expression:
     - EscapeClause
     - OtherOperatorExpression
     - BitwiseExpression
+    - BitwiseAndExpression
+    - ShiftExpression
     - AdditiveExpression
     - MultiplicativeExpression
     - ExponentiationExpression
@@ -488,7 +493,8 @@ Expression:
     - SampleValue
     - PivotHeader
     - ZoneValue
-    - ZoneIntervalWithInterval
+    - ZoneIntervalRange
+    - ZoneIntervalLiteral
     - ZoneIntervalWithPrecision
     - ZoneLocal
     - ZoneDefault
@@ -541,6 +547,7 @@ Expression:
     - RelOptionArgumentOpt
     - ExpressionAlias
     - PartitionSpecValue
+    - DeclareValue
 
 ColumnRefExpression:
   type: "unique_ptr<ColumnRefExpression>"
@@ -1052,7 +1059,9 @@ String:
     - JsonOperator
     - InetOperator
     - ListOperator
-    - BitOperator
+    - BitwiseOrOperator
+    - BitwiseAndOperator
+    - ShiftOperator
     - Term
     - Factor
     - ExponentOperator
@@ -1573,6 +1582,8 @@ BinaryExpressionTail:
   by_value: true
   rules:
     - BitwiseExpressionTail
+    - BitwiseAndExpressionTail
+    - ShiftExpressionTail
     - MultiplicativeExpressionTail
     - ExponentiationExpressionTail
 
@@ -1670,6 +1681,20 @@ overrides:
     by_value: true
   # spark
   SparkUsing: "pair<string, string>"
+  SparkTableComment: "string"
+  SparkTblPropertyValue: "string"
+  SparkTblProperty:
+    type: "pair<string, string>"
+    by_value: true
+  SparkTblPropertiesAction:
+    type: "SparkTblPropertiesAction"
+    by_value: true
+  SparkSetTblProperties:
+    type: "SparkTblPropertiesAction"
+    by_value: true
+  SparkUnsetTblProperties:
+    type: "SparkTblPropertiesAction"
+    by_value: true
   ColumnComment: "string"
   ViewColumn: "string"
   ViewColumnList: "vector<string>"
@@ -1789,6 +1814,32 @@ matcher_rule_overrides:
   OperatorLiteral:
     allow_type_overlap: true
     matcher: operator
+  CloseAngleBracket:
+    matcher: close_angle_bracket
+
+packrat_memoized_rules:
+  - Expression
+  - LambdaArrowExpression
+  - LogicalOrExpression
+  - LogicalAndExpression
+  - LogicalNotExpression
+  - IsExpression
+  - ComparisonExpression
+  - BitwiseExpression
+  - AdditiveExpression
+  - MultiplicativeExpression
+  - ExponentiationExpression
+  - PrefixExpression
+  - CollateExpression
+  - AtTimeZoneExpression
+  - SingleExpression
+  - BaseExpression
+  - ParensExpression
+  - ParenthesisExpression
+  - Identifier
+  - ColId
+  - ColumnReference
+  - FunctionExpression
 
 packrat_memoized_rules:
   - Expression

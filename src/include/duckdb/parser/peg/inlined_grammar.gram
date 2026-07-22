@@ -10,12 +10,15 @@ Statement <-
 	PragmaStatement /
 	CallStatement /
 	InsertStatement /
+	DeclareStatement /
+	DropVariableStatement /
 	DropStatement /
 	CopyStatement /
 	ExplainStatement /
 	UpdateStatement /
 	PrepareStatement /
 	ExecuteStatement /
+	SparkAlterTblPropertiesStmt /
 	AlterStatement /
 	TransactionStatement /
 	DeleteStatement /
@@ -201,7 +204,13 @@ PartitionSpecValue <- '=' Expression
 %whitespace <- [ \t\n\r]*
 List(D) <- D (',' D)* ','?
 Parens(D) <- '(' D ')'
-AngleBrackets(D) <- '<' D '>'
+AngleBrackets(D) <- '<' D CloseAngleBracket
+# Closes an angle-bracket type. The tokenizer splits '>'-led operator runs into individual '>'
+# tokens (keeping a trailing '>=' glued), and the keyword/operator matchers re-glue adjacent pieces
+# for expression operators ('>>', '>>='). Overridden in matcher.cpp to take exactly one '>' token,
+# ignoring run adjacency - so nested closers (array<array<int>>) and a trailing operator
+# (x::array<int>>y) both resolve.
+CloseAngleBracket <- '>'
 
 ColumnNameKeyword <- 'BETWEEN' /
 'BIGINT' /
@@ -362,6 +371,7 @@ ReservedKeyword <- 'ANALYSE' /
 'SELECT' /
 'SHOW' /
 'SOME' /
+'SORT' /
 'SUMMARIZE' /
 'SYMMETRIC' /
 'TABLE' /
@@ -703,6 +713,7 @@ UnreservedKeyword <- 'ABORT' /
 'TABLES' /
 'TABLESPACE' /
 'TARGET' /
+'TBLPROPERTIES' /
 'TEMP' /
 'TEMPLATE' /
 'TEMPORARY' /
@@ -721,6 +732,7 @@ UnreservedKeyword <- 'ABORT' /
 'UNKNOWN' /
 'UNLISTEN' /
 'UNLOGGED' /
+'UNSET' /
 'UNTIL' /
 'UPDATE' /
 'USE' /
@@ -756,6 +768,16 @@ AlterOptions <- AlterTableStmt / AlterViewStmt / AlterSequenceStmt / AlterDataba
 
 AlterTableStmt <- 'TABLE' IfExists? BaseTableName List(AlterTableOptions)
 AlterSchemaStmt <- 'SCHEMA' IfExists? QualifiedName RenameAlter
+
+# Spark's ALTER TABLE ... SET/UNSET TBLPROPERTIES. Only the reserved 'comment' property maps onto a duckdb
+# concept (the table comment); every other property is accepted and dropped. Lives at the Statement level
+# because it yields either an AlterStatement or, with no 'comment' property, a no-op VacuumStatement.
+SparkAlterTblPropertiesStmt <- 'ALTER' 'TABLE' BaseTableName SparkTblPropertiesAction
+SparkTblPropertiesAction <- SparkSetTblProperties / SparkUnsetTblProperties
+SparkSetTblProperties <- 'SET' 'TBLPROPERTIES' Parens(List(SparkTblProperty))
+SparkUnsetTblProperties <- 'UNSET' 'TBLPROPERTIES' IfExists? Parens(List(ColIdOrString))
+SparkTblProperty <- ColIdOrString SparkTblPropertyValue?
+SparkTblPropertyValue <- '='? ColIdOrString
 
 AlterTableOptions <- AddColumn / DropColumn / AlterColumn / AddConstraint / ChangeNullability /
         RenameColumn / RenameAlter / SetPartitionedBy / ResetPartitionedBy / SetSortedBy / ResetSortedBy / SetOptions / ResetOptions
@@ -986,7 +1008,9 @@ CreateTableStmt <- 'TABLE' IfNotExists? QualifiedName CreateTableDefinition Comm
 CreateTableDefinition <- CreateTableAs / CreateColumnList
 SparkUsing <- 'USING' Identifier SparkLocation?
 SparkLocation <- 'LOCATION' StringLiteral
-CreateTableAs <- SparkUsing? IdentifierList? PartitionSortedOptions? WithList? 'AS' Statement WithData?
+# Spark's table-level COMMENT clause. ColIdOrString accepts both 'text' and spark's double-quoted "text".
+SparkTableComment <- 'COMMENT' ColIdOrString
+CreateTableAs <- SparkUsing? IdentifierList? PartitionSortedOptions? SparkTableComment? WithList? 'AS' Statement WithData?
 PartitionSortedOptions <- PartitionOptSortedOptions / SortedOptPartitionOptions
 PartitionOptSortedOptions <- PartitionOptions SortedOptions?
 SortedOptPartitionOptions <- SortedOptions PartitionOptions?
@@ -998,7 +1022,7 @@ WithData <- WithDataOnly / WithNoData
 WithDataOnly <- 'WITH' 'DATA'
 WithNoData <- 'WITH' 'NO' 'DATA'
 IdentifierList <- Parens(List(Identifier))
-CreateColumnList <- Parens(CreateTableColumnList?) SparkUsing? PartitionSortedOptions? WithList?
+CreateColumnList <- Parens(CreateTableColumnList?) SparkUsing? PartitionSortedOptions? SparkTableComment? WithList?
 IfNotExists <- 'IF' 'NOT' 'EXISTS'
 QualifiedName <- CatalogReservedSchemaIdentifier / SchemaReservedIdentifierOrStringLiteral / IdentifierOrStringLiteral
 SchemaReservedIdentifierOrStringLiteral <- SchemaQualification ReservedIdentifierOrStringLiteral
@@ -1118,6 +1142,12 @@ SchemaModeName <- 'BINDING' / 'COMPENSATION' / 'EVOLUTION' / ('TYPE' 'EVOLUTION'
 DeallocateStatement <- 'DEALLOCATE' DeallocatePrepare? Identifier
 DeallocatePrepare <- 'PREPARE'
 
+# Spark session variables. DECLARE maps to duckdb SET VARIABLE, DROP ... VARIABLE maps to RESET VARIABLE.
+DeclareStatement <- 'DECLARE' OrReplace? 'VARIABLE'? Identifier Type? DeclareValue?
+DeclareValue <- ('DEFAULT' / '=') Expression
+
+DropVariableStatement <- 'DROP' ('TEMPORARY' / 'TEMP')? 'VARIABLE' IfExists? Identifier
+
 DeleteStatement <- WithClause? 'DELETE' 'FROM' TargetOptAlias DeleteUsingClause? WhereClause? ReturningClause?
 TruncateStatement <- 'TRUNCATE' 'TABLE'? BaseTableName
 TargetOptAlias <- BaseTableName 'AS'? ColId?
@@ -1134,9 +1164,11 @@ DescribeQuery <- DescribeRule 'QUERY' SelectStatementInternal
 # Spark's { DESC | DESCRIBE } FUNCTION [EXTENDED] <name>. Must precede DescribeTable, otherwise DescribeTable
 # consumes FUNCTION as a table name. Routed to spark_describe_function[_extended] by the transformer.
 DescribeFunction <- DescribeRule 'FUNCTION' 'EXTENDED'? FunctionIdentifier
-# Spark's { DESC | DESCRIBE } [TABLE] [EXTENDED | FORMATTED] <table>. Ordered after ShowAllTables (so
+# Spark's { DESC | DESCRIBE } [TABLE] [EXTENDED | FORMATTED] <table> [<column>]. Ordered after ShowAllTables (so
 # DESCRIBE ALL TABLES wins) and before ShowSelect (so DESCRIBE TABLE t1 is not parsed as the TABLE t1 select).
-DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget PartitionSpec?
+# The trailing DottedIdentifier is Spark's describeColName (a possibly nested column path): it describes that one
+# column instead of the table, and is routed to spark_describe_column[_extended] by the transformer.
+DescribeTable <- DescribeRule 'TABLE'? ('EXTENDED' / 'FORMATTED')? DescribeTarget PartitionSpec? DottedIdentifier?
 ShowQualifiedName <- ShowOrDescribeOrSummarize DescribeTarget?
 ShowTables <- ShowOrDescribe 'TABLES' 'FROM' QualifiedName
 DescribeTarget <- DescribeBaseTableName / DescribeStringLiteral
@@ -1486,37 +1518,45 @@ StringOperator <- '^@' / '||'
 QualifiedOperator <- 'OPERATOR' Parens(QualifiedOperatorContents)
 QualifiedOperatorContents <- ColIdDot* AnyOp
 AnyOp <- '!~~*' / '>>=' / '<<=' / '->>' / '!~~' / '!~*' / '~~*' / '~~~' / '~*' / '!~' / '^@' / '||' / '&&' / '@>' / '<@' / '<=' / '>=' / '<>' / '!=' / '==' / '<<' / '>>' / '//' / '**' / '->' / '~~' / '+' / '-' / '*' / '/' / '%' / '^' / '<' / '>' / '=' / '&' / '|' / '~' / '!'
-# LEVEL 9
-BitwiseExpression <- AdditiveExpression BitwiseExpressionTail*
-BitwiseExpressionTail <- BitOperator AdditiveExpression
-BitOperator <- '&' / '|' / '<<' / '>>'
-# LEVEL 10
+# LEVEL 9 (bitwise OR - loosest of the three bitwise tiers)
+BitwiseExpression <- BitwiseAndExpression BitwiseExpressionTail*
+BitwiseExpressionTail <- BitwiseOrOperator BitwiseAndExpression
+BitwiseOrOperator <- '|'
+# LEVEL 10 (bitwise AND)
+BitwiseAndExpression <- ShiftExpression BitwiseAndExpressionTail*
+BitwiseAndExpressionTail <- BitwiseAndOperator ShiftExpression
+BitwiseAndOperator <- '&'
+# LEVEL 11 (shift - tighter than & and |, matching Spark's valueExpression precedence)
+ShiftExpression <- AdditiveExpression ShiftExpressionTail*
+ShiftExpressionTail <- ShiftOperator AdditiveExpression
+ShiftOperator <- '<<' / '>>'
+# LEVEL 12
 AdditiveExpression <- MultiplicativeExpression AdditiveExpressionTail*
 AdditiveExpressionTail <- Term MultiplicativeExpression
 Term <- '+' / '-'
-# LEVEL 11
+# LEVEL 13
 MultiplicativeExpression <- ExponentiationExpression MultiplicativeExpressionTail*
 MultiplicativeExpressionTail <- Factor ExponentiationExpression
 Factor <- '*' / '/' / '//' / '%' / 'DIV'
-# LEVEL 12
+# LEVEL 14
 ExponentiationExpression <- CollateExpression ExponentiationExpressionTail*
 ExponentiationExpressionTail <- ExponentOperator CollateExpression
 ExponentOperator <- '^' / '**'
-# LEVEL 13
+# LEVEL 15
 CollateExpression <- AtTimeZoneExpression CollateExpressionTail*
 CollateExpressionTail <- CollateOperator AtTimeZoneExpression
 CollateOperator <- 'COLLATE'
-# LEVEL 14
+# LEVEL 16
 AtTimeZoneExpression <- PrefixExpression AtTimeZoneExpressionTail*
 AtTimeZoneExpressionTail <- AtTimeZoneOperator PrefixExpression
 AtTimeZoneOperator <- 'AT' 'TIME' 'ZONE'
-# LEVEL 15
+# LEVEL 17
 PrefixExpression <- PrefixOperator* BaseExpression
 PrefixOperator <- QualifiedOperator / MinusPrefixOperator / PlusPrefixOperator / TildePrefixOperator
 MinusPrefixOperator <- '-'
 PlusPrefixOperator <- '+'
 TildePrefixOperator <- '~'
-# LEVEL 16 (Highest)
+# LEVEL 18 (Highest)
 BaseExpression <- SingleExpression IndirectionList?
 IndirectionList <- Indirection+
 
@@ -1869,7 +1909,7 @@ AscendingOrder <- 'ASC' / 'ASCENDING'
 NullsFirstOrLast <- NullsFirst / NullsLast
 NullsFirst <- 'NULLS' 'FIRST'
 NullsLast <- 'NULLS' 'LAST'
-OrderByClause <- 'ORDER' 'BY' OrderByExpressions
+OrderByClause <- ('ORDER' / 'SORT') 'BY' OrderByExpressions
 OrderByExpressions <- OrderByExpressionList / OrderByAll
 OrderByExpressionList <- List(OrderByExpression)
 OrderByAll <- 'ALL' DescOrAsc? NullsFirstOrLast?
@@ -1908,12 +1948,13 @@ StandardAssignment <- SetVariableOrSetting SetAssignment
 SetVariableOrSetting <- SetVariable / SetSetting
 SetTimeZone <- 'TIME' 'ZONE' ZoneValue
 
-ZoneValue <- ZoneIntervalWithPrecision / ZoneIntervalWithInterval / ZoneLocal / ZoneDefault / ZoneStringLiteral / ZoneIdentifier / NumberLiteral
+ZoneValue <- ZoneIntervalWithPrecision / ZoneIntervalRange / ZoneIntervalLiteral / ZoneLocal / ZoneDefault / ZoneStringLiteral / ZoneIdentifier / NumberLiteral
 ZoneLocal <- 'LOCAL'
 ZoneDefault <- 'DEFAULT'
 ZoneStringLiteral <- StringLiteral
 ZoneIdentifier <- Identifier
-ZoneIntervalWithInterval <- 'INTERVAL' StringLiteral Interval?
+ZoneIntervalRange <- 'INTERVAL' StringLiteral IntervalToIntervalAsType
+ZoneIntervalLiteral <- IntervalLiteral
 ZoneIntervalWithPrecision <- 'INTERVAL' Parens(NumberLiteral) StringLiteral
 
 SetSetting <- DottedSettingIdentifier / (SettingScope? SettingName)

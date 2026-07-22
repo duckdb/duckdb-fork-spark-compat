@@ -10,12 +10,15 @@ Statement <-
 	PragmaStatement /
 	CallStatement /
 	InsertStatement /
+	DeclareStatement /
+	DropVariableStatement /
 	DropStatement /
 	CopyStatement /
 	ExplainStatement /
 	UpdateStatement /
 	PrepareStatement /
 	ExecuteStatement /
+	SparkAlterTblPropertiesStmt /
 	AlterStatement /
 	TransactionStatement /
 	DeleteStatement /
@@ -201,4 +204,10 @@ PartitionSpecValue <- '=' Expression
 %whitespace <- [ \t\n\r]*
 List(D) <- D (',' D)* ','?
 Parens(D) <- '(' D ')'
-AngleBrackets(D) <- '<' D '>'
+AngleBrackets(D) <- '<' D CloseAngleBracket
+# Closes an angle-bracket type. The tokenizer splits '>'-led operator runs into individual '>'
+# tokens (keeping a trailing '>=' glued), and the keyword/operator matchers re-glue adjacent pieces
+# for expression operators ('>>', '>>='). Overridden in matcher.cpp to take exactly one '>' token,
+# ignoring run adjacency - so nested closers (array<array<int>>) and a trailing operator
+# (x::array<int>>y) both resolve.
+CloseAngleBracket <- '>'

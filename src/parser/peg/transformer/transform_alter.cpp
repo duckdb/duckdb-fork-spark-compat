@@ -6,8 +6,10 @@
 #include "duckdb/parser/parsed_data/alter_table_info.hpp"
 #include "duckdb/parser/expression/cast_expression.hpp"
 #include "duckdb/parser/parsed_data/alter_database_info.hpp"
+#include "duckdb/parser/parsed_data/vacuum_info.hpp"
 #include "duckdb/parser/statement/multi_statement.hpp"
 #include "duckdb/parser/statement/update_statement.hpp"
+#include "duckdb/parser/statement/vacuum_statement.hpp"
 #include "duckdb/parser/query_node/update_query_node.hpp"
 
 namespace duckdb_fork {
@@ -52,6 +54,69 @@ PEGTransformerFactory::TransformAlterTableStmt(PEGTransformer &transformer, cons
 	result->SetQualifiedName(base_table_name->GetQualifiedName());
 
 	return std::move(result);
+}
+
+// SparkAlterTblPropertiesStmt <- 'ALTER' 'TABLE' BaseTableName SparkTblPropertiesAction
+// Spark's 'comment' property is the table comment, so it maps onto SetCommentInfo (the node COMMENT ON TABLE
+// produces). DuckDB stores no other table properties, so a list without 'comment' only checks the table exists.
+unique_ptr<SQLStatement>
+PEGTransformerFactory::TransformSparkAlterTblPropertiesStmt(PEGTransformer &transformer,
+                                                            unique_ptr<BaseTableRef> base_table_name,
+                                                            SparkTblPropertiesAction spark_tbl_properties_action) {
+	auto comment_entry = spark_tbl_properties_action.properties.find("comment");
+	if (comment_entry == spark_tbl_properties_action.properties.end()) {
+		VacuumOptions vacuum_options;
+		auto result = make_uniq<VacuumStatement>(vacuum_options);
+		result->info->ref = std::move(base_table_name);
+		result->info->has_table = true;
+		return std::move(result);
+	}
+	// UNSET carries no value; a NULL comment clears it, as with COMMENT ON TABLE ... IS NULL
+	auto comment_value = spark_tbl_properties_action.unset ? Value() : Value(comment_entry->second);
+	auto qualified_name = base_table_name->GetQualifiedName();
+	auto result = make_uniq<AlterStatement>();
+	result->info = make_uniq<SetCommentInfo>(CatalogType::TABLE_ENTRY, qualified_name.Catalog(),
+	                                         qualified_name.Schema(), qualified_name.Name(), std::move(comment_value),
+	                                         OnEntryNotFound::THROW_EXCEPTION);
+	return std::move(result);
+}
+
+// SparkSetTblProperties <- 'SET' 'TBLPROPERTIES' Parens(List(SparkTblProperty))
+SparkTblPropertiesAction
+PEGTransformerFactory::TransformSparkSetTblProperties(PEGTransformer &transformer,
+                                                      vector<pair<string, string>> spark_tbl_property) {
+	SparkTblPropertiesAction result;
+	for (auto &property : spark_tbl_property) {
+		result.properties[property.first] = std::move(property.second);
+	}
+	return result;
+}
+
+// SparkUnsetTblProperties <- 'UNSET' 'TBLPROPERTIES' IfExists? Parens(List(ColIdOrString))
+// The IF EXISTS guard is accepted and ignored: an absent property is dropped either way.
+SparkTblPropertiesAction
+PEGTransformerFactory::TransformSparkUnsetTblProperties(PEGTransformer &transformer, const optional<bool> &if_exists,
+                                                        const vector<Identifier> &col_id_or_string) {
+	SparkTblPropertiesAction result;
+	result.unset = true;
+	for (auto &key : col_id_or_string) {
+		result.properties[key.GetIdentifierName()] = string();
+	}
+	return result;
+}
+
+// SparkTblProperty <- ColIdOrString SparkTblPropertyValue?
+pair<string, string>
+PEGTransformerFactory::TransformSparkTblProperty(PEGTransformer &transformer, const Identifier &col_id_or_string,
+                                                 const optional<string> &spark_tbl_property_value) {
+	return make_pair(col_id_or_string.GetIdentifierName(),
+	                 spark_tbl_property_value ? *spark_tbl_property_value : string());
+}
+
+// SparkTblPropertyValue <- '='? ColIdOrString
+string PEGTransformerFactory::TransformSparkTblPropertyValue(PEGTransformer &transformer, const bool &has_result,
+                                                             const Identifier &col_id_or_string) {
+	return col_id_or_string.GetIdentifierName();
 }
 
 unique_ptr<AlterInfo> PEGTransformerFactory::TransformAlterDatabaseStmt(PEGTransformer &transformer,

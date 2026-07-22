@@ -55,6 +55,29 @@ void MatchState::AddSuggestion(MatcherSuggestion suggestion) {
 	suggestions.push_back(std::move(suggestion));
 }
 
+//! True if this token is made purely of operator-run characters (the tokenizer's OPERATOR-state
+//! continuation set). The tokenizer splits '>'-led operator runs into individual tokens; adjacent
+//! tokens satisfying this predicate originate from one source run and can be glued back together.
+static bool IsGluedOperatorToken(const MatcherToken &token) {
+	if (token.type != TokenType::OPERATOR || token.text.empty()) {
+		return false;
+	}
+	for (auto &c : token.text) {
+		if (!BaseTokenizer::CharacterIsOperator(c)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+//! True if the token at idx directly continues the operator run of the previous token
+//! (offset-contiguous in the source, no whitespace in between)
+static bool ContinuesOperatorRun(const vector<MatcherToken> &tokens, idx_t idx) {
+	auto &prev = tokens[idx - 1];
+	auto &token = tokens[idx];
+	return IsGluedOperatorToken(token) && token.offset == prev.offset + prev.text.size();
+}
+
 class KeywordMatcher : public Matcher {
 public:
 	static constexpr MatcherType TYPE = MatcherType::KEYWORD;
@@ -75,12 +98,15 @@ public:
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
-		auto &token_text = state.tokens[state.token_index].text;
-		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
+		auto index_before = state.token_index;
+		auto &token = state.tokens[state.token_index];
+		auto start_offset = optional_idx(token.offset);
 		if (!MatchKeyword(state)) {
 			return nullptr;
 		}
-		auto result = state.allocator.Allocate(make_uniq<KeywordParseResult>(token_text, start_offset));
+		// a keyword matched across several glued operator tokens is recorded as the keyword itself
+		const string &matched_text = state.token_index - index_before > 1 ? keyword : token.text;
+		auto result = state.allocator.Allocate(make_uniq<KeywordParseResult>(matched_text, start_offset));
 		result->name = name;
 		return result;
 	}
@@ -102,6 +128,9 @@ private:
 			return false;
 		}
 		auto &token = state.tokens[state.token_index];
+		if (IsGluedOperatorToken(token)) {
+			return MatchLiteralAgainstGluedOperatorRun(state);
+		}
 		if (StringUtil::CIEquals(keyword, token.text)) {
 			// move to the next token
 			state.token_index++;
@@ -109,6 +138,37 @@ private:
 			return true;
 		}
 		return false;
+	}
+
+	//! Match this grammar literal ("keyword" covers operator literals like '>>' too) against the
+	//! maximal glued run of operator tokens. The tokenizer splits '>'-led runs so angle-bracket type
+	//! closers can consume them one '>' at a time; gluing the pieces back here makes expression
+	//! operators ('>>', '>>=') match exactly as if the run were still a single token.
+	bool MatchLiteralAgainstGluedOperatorRun(MatchState &state) const {
+		auto &tokens = state.tokens;
+		idx_t idx = state.token_index;
+		idx_t keyword_pos = 0;
+		while (keyword_pos < keyword.size()) {
+			if (idx >= tokens.size()) {
+				return false;
+			}
+			if (idx > state.token_index && !ContinuesOperatorRun(tokens, idx)) {
+				return false;
+			}
+			auto &text = tokens[idx].text;
+			if (keyword.compare(keyword_pos, text.size(), text) != 0) {
+				return false;
+			}
+			keyword_pos += text.size();
+			idx++;
+		}
+		// the keyword must cover the whole glued run (maximal munch, as if it were a single token)
+		if (idx < tokens.size() && ContinuesOperatorRun(tokens, idx)) {
+			return false;
+		}
+		state.token_index = idx;
+		state.UpdateMaxTokenIndex();
+		return true;
 	}
 
 private:
@@ -819,6 +879,15 @@ public:
 			return MatchResultType::FAIL;
 		}
 		state.tokens[state.token_index - 1].type = TokenType::STRING_LITERAL;
+		// String literal continuation: adjacent plain string literals are concatenated (e.g. 'a' 'b' -> 'ab').
+		if (string_info.type == SpecialStringCharacter::STANDARD) {
+			while (state.token_index < state.tokens.size() &&
+			       IsStandardStringToken(state.tokens[state.token_index].text)) {
+				state.tokens[state.token_index].type = TokenType::STRING_LITERAL;
+				state.token_index++;
+				state.UpdateMaxTokenIndex();
+			}
+		}
 		return MatchResultType::SUCCESS;
 	}
 
@@ -856,6 +925,18 @@ public:
 			effective_type = SpecialStringCharacter::ESCAPE_STRING;
 		}
 
+		// String literal continuation: adjacent plain string literals are concatenated (e.g. 'a' 'b' -> 'ab').
+		if (string_info.type == SpecialStringCharacter::STANDARD) {
+			while (state.token_index < state.tokens.size() &&
+			       IsStandardStringToken(state.tokens[state.token_index].text)) {
+				auto &next_token = state.tokens[state.token_index];
+				stripped_string += StripStandardStringToken(next_token.text);
+				next_token.type = TokenType::STRING_LITERAL;
+				state.token_index++;
+				state.UpdateMaxTokenIndex();
+			}
+		}
+
 		auto result = state.allocator.Allocate(
 		    make_uniq<StringLiteralParseResult>(stripped_string, effective_type, start_offset));
 		result->name = name;
@@ -887,6 +968,26 @@ private:
 			return true;
 		}
 		return false;
+	}
+
+	//! A plain (unprefixed) single- or double-quoted string literal token, eligible for continuation.
+	static bool IsStandardStringToken(const string &text) {
+		if (text.size() < 2) {
+			return false;
+		}
+		auto info = GetSpecialStringInfo(text);
+		if (info.type != SpecialStringCharacter::STANDARD) {
+			return false;
+		}
+		char open_quote = text[info.prefix_len - 1];
+		char close_quote = text.back();
+		return (open_quote == '\'' && close_quote == '\'') || (open_quote == '"' && close_quote == '"');
+	}
+
+	//! Strip the surrounding quotes of a plain string literal token, collapsing doubled quotes.
+	static string StripStandardStringToken(const string &text) {
+		string stripped = text.substr(1, text.size() - 2);
+		return StringUtil::Replace(stripped, "''", "'");
 	}
 };
 
@@ -1019,7 +1120,8 @@ public:
 	}
 
 	MatchResultType Match(MatchState &state) const override {
-		if (!MatchOperator(state)) {
+		string matched_text;
+		if (!MatchOperator(state, matched_text)) {
 			return MatchResultType::FAIL;
 		}
 		return MatchResultType::SUCCESS;
@@ -1029,12 +1131,12 @@ public:
 		if (state.token_index >= state.tokens.size()) {
 			return nullptr;
 		}
-		auto &token_text = state.tokens[state.token_index].text;
 		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
-		if (!MatchOperator(state)) {
+		string matched_text;
+		if (!MatchOperator(state, matched_text)) {
 			return nullptr;
 		}
-		return state.allocator.Allocate(make_uniq<OperatorParseResult>(token_text, start_offset));
+		return state.allocator.Allocate(make_uniq<OperatorParseResult>(std::move(matched_text), start_offset));
 	}
 
 	SuggestionType AddSuggestionInternal(MatchState &state) const override {
@@ -1046,11 +1148,28 @@ public:
 	}
 
 private:
-	static bool MatchOperator(MatchState &state) {
-		if (state.token_index >= state.tokens.size()) {
+	//! Match the maximal glued run of operator tokens as one operator (the tokenizer splits
+	//! '>'-led runs; the full run is what the source spelled as a single operator).
+	static bool MatchOperator(MatchState &state, string &matched_text) {
+		if (state.token_index >= state.tokens.size() || !IsGluedOperatorToken(state.tokens[state.token_index])) {
 			return false;
 		}
-		auto &token_text = state.tokens[state.token_index].text;
+		idx_t run_length = 1;
+		matched_text = state.tokens[state.token_index].text;
+		while (state.token_index + run_length < state.tokens.size() &&
+		       ContinuesOperatorRun(state.tokens, state.token_index + run_length)) {
+			matched_text += state.tokens[state.token_index + run_length].text;
+			run_length++;
+		}
+		if (!MatchesOperatorText(matched_text)) {
+			return false;
+		}
+		state.token_index += run_length;
+		state.UpdateMaxTokenIndex();
+		return true;
+	}
+
+	static bool MatchesOperatorText(const string &token_text) {
 		// Exclude the lambda arrow and JSON arrow — these have dedicated grammar roles
 		if (token_text == "->" || token_text == "->>") {
 			return false;
@@ -1074,8 +1193,6 @@ private:
 				return false;
 			}
 		}
-		state.token_index++;
-		state.UpdateMaxTokenIndex();
 		return true;
 	}
 };
@@ -1125,6 +1242,61 @@ private:
 			if (!IsArithmeticOperatorChar(c)) {
 				return false;
 			}
+		}
+		state.token_index++;
+		state.UpdateMaxTokenIndex();
+		return true;
+	}
+};
+
+//! Matches a single '>' token closing an angle-bracket type. The tokenizer splits '>'-led operator
+//! runs into individual '>' tokens (keeping a trailing '>=' glued), so nested closers in
+//! array<array<int>> arrive as separate tokens. Expression operators ('>>', '>>=') are re-glued by
+//! the run-aware keyword/operator matchers; this matcher deliberately takes exactly one '>' token,
+//! ignoring run adjacency.
+class CloseAngleBracketMatcher : public Matcher {
+public:
+	static constexpr MatcherType TYPE = MatcherType::KEYWORD;
+
+public:
+	CloseAngleBracketMatcher() : Matcher(TYPE) {
+	}
+
+	MatchResultType Match(MatchState &state) const override {
+		if (!MatchClose(state)) {
+			return MatchResultType::FAIL;
+		}
+		return MatchResultType::SUCCESS;
+	}
+
+	optional_ptr<ParseResult> MatchParseResultInternal(MatchState &state) const override {
+		if (state.token_index >= state.tokens.size()) {
+			return nullptr;
+		}
+		auto start_offset = optional_idx(state.tokens[state.token_index].offset);
+		if (!MatchClose(state)) {
+			return nullptr;
+		}
+		return state.allocator.Allocate(make_uniq<KeywordParseResult>(">", start_offset));
+	}
+
+	SuggestionType AddSuggestionInternal(MatchState &state) const override {
+		AutoCompleteCandidate candidate(">", SuggestionState::SUGGEST_KEYWORD, 0, CandidateType::KEYWORD);
+		state.AddSuggestion(MatcherSuggestion(std::move(candidate)));
+		return SuggestionType::MANDATORY;
+	}
+
+	string ToString() const override {
+		return "'>'";
+	}
+
+private:
+	static bool MatchClose(MatchState &state) {
+		if (state.token_index >= state.tokens.size()) {
+			return false;
+		}
+		if (state.tokens[state.token_index].text != ">") {
+			return false;
 		}
 		state.token_index++;
 		state.UpdateMaxTokenIndex();
@@ -1586,6 +1758,7 @@ Matcher &MatcherFactory::CreateMatcher(const char *grammar, const char *root_rul
 	AddRuleOverride("NumberLiteral", allocator.Allocate(make_uniq<NumberLiteralMatcher>()));
 	AddRuleOverride("StringLiteral", allocator.Allocate(make_uniq<StringLiteralMatcher>()));
 	AddRuleOverride("OperatorLiteral", allocator.Allocate(make_uniq<OperatorMatcher>()));
+	AddRuleOverride("CloseAngleBracket", allocator.Allocate(make_uniq<CloseAngleBracketMatcher>()));
 	//===--------------------------------------------------------------------===//
 	// END GENERATED RULE OVERRIDES
 	//===--------------------------------------------------------------------===//

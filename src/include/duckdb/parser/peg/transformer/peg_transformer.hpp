@@ -28,6 +28,7 @@
 #include "duckdb/parser/peg/ast/on_conflict_expression_target.hpp"
 #include "duckdb/parser/peg/ast/sequence_option.hpp"
 #include "duckdb/parser/peg/ast/setting_info.hpp"
+#include "duckdb/parser/peg/ast/spark_tbl_properties_action.hpp"
 #include "duckdb/parser/peg/ast/table_alias.hpp"
 #include "duckdb/parser/peg/ast/cast_arguments.hpp"
 #include "duckdb/parser/peg/ast/expression_chain.hpp"
@@ -507,6 +508,35 @@ public:
 	                                                TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeAlterSchemaStmtTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSparkAlterTblPropertiesStmtTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                            TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkAlterTblPropertiesStmtTrampoline(PEGTransformer &transformer,
+	                                                                                      TransformStack &stack,
+	                                                                                      TransformStackFrame &frame);
+	static void InitializeSparkTblPropertiesActionTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                         TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkTblPropertiesActionTrampoline(PEGTransformer &transformer,
+	                                                                                   TransformStack &stack,
+	                                                                                   TransformStackFrame &frame);
+	static void InitializeSparkSetTblPropertiesTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                      TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkSetTblPropertiesTrampoline(PEGTransformer &transformer,
+	                                                                                TransformStack &stack,
+	                                                                                TransformStackFrame &frame);
+	static void InitializeSparkUnsetTblPropertiesTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                        TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkUnsetTblPropertiesTrampoline(PEGTransformer &transformer,
+	                                                                                  TransformStack &stack,
+	                                                                                  TransformStackFrame &frame);
+	static void InitializeSparkTblPropertyTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                 TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeSparkTblPropertyTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSparkTblPropertyValueTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                      TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSparkTblPropertyValueTrampoline(PEGTransformer &transformer,
+	                                                                                TransformStack &stack,
+	                                                                                TransformStackFrame &frame);
 	static void InitializeAlterTableOptionsTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                  TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -1593,6 +1623,10 @@ public:
 	                                              TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeSparkLocationTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSparkTableCommentTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                  TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeSparkTableCommentTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeCreateTableAsTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                              TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -2055,6 +2089,19 @@ public:
 	                                                  TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeDeallocatePrepareTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeDeclareStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                 TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeDeclareStatementTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeDeclareValueTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                             TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeDeclareValueTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeDropVariableStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                      TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeDropVariableStatementTrampoline(PEGTransformer &transformer,
+	                                                                                TransformStack &stack,
+	                                                                                TransformStackFrame &frame);
 	static void InitializeDeleteStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -3173,10 +3220,38 @@ public:
 	static unique_ptr<TransformResultValue> FinalizeBitwiseExpressionTailTrampoline(PEGTransformer &transformer,
 	                                                                                TransformStack &stack,
 	                                                                                TransformStackFrame &frame);
-	static void InitializeBitOperatorTrampoline(PEGTransformer &transformer, TransformStack &stack,
-	                                            TransformStackFrame &frame);
+	static void InitializeBitwiseOrOperatorTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                  TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
-	FinalizeBitOperatorTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	FinalizeBitwiseOrOperatorTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeBitwiseAndExpressionTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                     TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeBitwiseAndExpressionTrampoline(PEGTransformer &transformer,
+	                                                                               TransformStack &stack,
+	                                                                               TransformStackFrame &frame);
+	static void InitializeBitwiseAndExpressionTailTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                         TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeBitwiseAndExpressionTailTrampoline(PEGTransformer &transformer,
+	                                                                                   TransformStack &stack,
+	                                                                                   TransformStackFrame &frame);
+	static void InitializeBitwiseAndOperatorTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                   TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeBitwiseAndOperatorTrampoline(PEGTransformer &transformer,
+	                                                                             TransformStack &stack,
+	                                                                             TransformStackFrame &frame);
+	static void InitializeShiftExpressionTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeShiftExpressionTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeShiftExpressionTailTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                    TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeShiftExpressionTailTrampoline(PEGTransformer &transformer,
+	                                                                              TransformStack &stack,
+	                                                                              TransformStackFrame &frame);
+	static void InitializeShiftOperatorTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                              TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeShiftOperatorTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeAdditiveExpressionTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                   TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue> FinalizeAdditiveExpressionTrampoline(PEGTransformer &transformer,
@@ -4559,11 +4634,15 @@ public:
 	                                               TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeZoneIdentifierTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
-	static void InitializeZoneIntervalWithIntervalTrampoline(PEGTransformer &transformer, TransformStack &stack,
-	                                                         TransformStackFrame &frame);
-	static unique_ptr<TransformResultValue> FinalizeZoneIntervalWithIntervalTrampoline(PEGTransformer &transformer,
-	                                                                                   TransformStack &stack,
-	                                                                                   TransformStackFrame &frame);
+	static void InitializeZoneIntervalRangeTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                  TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeZoneIntervalRangeTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeZoneIntervalLiteralTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                    TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeZoneIntervalLiteralTrampoline(PEGTransformer &transformer,
+	                                                                              TransformStack &stack,
+	                                                                              TransformStackFrame &frame);
 	static void InitializeZoneIntervalWithPrecisionTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                          TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue> FinalizeZoneIntervalWithPrecisionTrampoline(PEGTransformer &transformer,
@@ -4851,6 +4930,31 @@ public:
 	static unique_ptr<AlterInfo> TransformAlterSchemaStmt(PEGTransformer &transformer, const optional<bool> &if_exists,
 	                                                      const QualifiedName &qualified_name,
 	                                                      unique_ptr<AlterTableInfo> rename_alter);
+	static unique_ptr<TransformResultValue> TransformSparkAlterTblPropertiesStmtInternal(PEGTransformer &transformer,
+	                                                                                     ParseResult &parse_result);
+	static unique_ptr<SQLStatement>
+	TransformSparkAlterTblPropertiesStmt(PEGTransformer &transformer, unique_ptr<BaseTableRef> base_table_name,
+	                                     SparkTblPropertiesAction spark_tbl_properties_action);
+	static unique_ptr<TransformResultValue> TransformSparkTblPropertiesActionInternal(PEGTransformer &transformer,
+	                                                                                  ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformSparkSetTblPropertiesInternal(PEGTransformer &transformer,
+	                                                                               ParseResult &parse_result);
+	static SparkTblPropertiesAction TransformSparkSetTblProperties(PEGTransformer &transformer,
+	                                                               vector<pair<string, string>> spark_tbl_property);
+	static unique_ptr<TransformResultValue> TransformSparkUnsetTblPropertiesInternal(PEGTransformer &transformer,
+	                                                                                 ParseResult &parse_result);
+	static SparkTblPropertiesAction TransformSparkUnsetTblProperties(PEGTransformer &transformer,
+	                                                                 const optional<bool> &if_exists,
+	                                                                 const vector<Identifier> &col_id_or_string);
+	static unique_ptr<TransformResultValue> TransformSparkTblPropertyInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static pair<string, string> TransformSparkTblProperty(PEGTransformer &transformer,
+	                                                      const Identifier &col_id_or_string,
+	                                                      const optional<string> &spark_tbl_property_value);
+	static unique_ptr<TransformResultValue> TransformSparkTblPropertyValueInternal(PEGTransformer &transformer,
+	                                                                               ParseResult &parse_result);
+	static string TransformSparkTblPropertyValue(PEGTransformer &transformer, const bool &has_result,
+	                                             const Identifier &col_id_or_string);
 	static unique_ptr<TransformResultValue> TransformAlterTableOptionsInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformAddConstraintInternal(PEGTransformer &transformer,
@@ -5769,12 +5873,16 @@ public:
 	static unique_ptr<TransformResultValue> TransformSparkLocationInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static string TransformSparkLocation(PEGTransformer &transformer, const string &string_literal);
+	static unique_ptr<TransformResultValue> TransformSparkTableCommentInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static string TransformSparkTableComment(PEGTransformer &transformer, const Identifier &col_id_or_string);
 	static unique_ptr<TransformResultValue> TransformCreateTableAsInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static CreateTableDefinition
 	TransformCreateTableAs(PEGTransformer &transformer, const optional<pair<string, string>> &spark_using,
 	                       optional<ColumnList> identifier_list,
 	                       optional<PartitionSortedOptions> partition_sorted_options,
+	                       const optional<string> &spark_table_comment,
 	                       optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list,
 	                       unique_ptr<SQLStatement> statement, const optional<bool> &with_data);
 	static unique_ptr<TransformResultValue> TransformPartitionSortedOptionsInternal(PEGTransformer &transformer,
@@ -5819,6 +5927,7 @@ public:
 	TransformCreateColumnList(PEGTransformer &transformer, optional<ColumnElements> create_table_column_list,
 	                          const optional<pair<string, string>> &spark_using,
 	                          optional<PartitionSortedOptions> partition_sorted_options,
+	                          const optional<string> &spark_table_comment,
 	                          optional<case_insensitive_map_t<unique_ptr<ParsedExpression>>> with_list);
 	static unique_ptr<TransformResultValue> TransformIfNotExistsInternal(PEGTransformer &transformer,
 	                                                                     ParseResult &parse_result);
@@ -6133,6 +6242,20 @@ public:
 	static unique_ptr<TransformResultValue> TransformDeallocatePrepareInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static bool TransformDeallocatePrepare(PEGTransformer &transformer);
+	static unique_ptr<TransformResultValue> TransformDeclareStatementInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static unique_ptr<SQLStatement> TransformDeclareStatement(PEGTransformer &transformer,
+	                                                          const optional<bool> &or_replace, const bool &has_result,
+	                                                          const Identifier &identifier,
+	                                                          const optional<LogicalType> &type,
+	                                                          optional<unique_ptr<ParsedExpression>> declare_value);
+	static unique_ptr<TransformResultValue> TransformDeclareValueInternal(PEGTransformer &transformer,
+	                                                                      ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformDropVariableStatementInternal(PEGTransformer &transformer,
+	                                                                               ParseResult &parse_result);
+	static unique_ptr<SQLStatement> TransformDropVariableStatement(PEGTransformer &transformer, const bool &has_result,
+	                                                               const optional<bool> &if_exists,
+	                                                               const Identifier &identifier);
 	static unique_ptr<TransformResultValue> TransformDeleteStatementInternal(PEGTransformer &transformer,
 	                                                                         ParseResult &parse_result);
 	static unique_ptr<SQLStatement>
@@ -6180,7 +6303,8 @@ public:
 	static unique_ptr<QueryNode> TransformDescribeTable(PEGTransformer &transformer, const ShowType &describe_rule,
 	                                                    const bool &has_result, const bool &has_result_1,
 	                                                    DescribeTarget describe_target,
-	                                                    optional<vector<PartitionSpecEntry>> partition_spec);
+	                                                    optional<vector<PartitionSpecEntry>> partition_spec,
+	                                                    const optional<vector<string>> &dotted_identifier);
 	static unique_ptr<TransformResultValue> TransformShowQualifiedNameInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<QueryNode> TransformShowQualifiedName(PEGTransformer &transformer,
@@ -7092,14 +7216,38 @@ public:
 	static unique_ptr<TransformResultValue> TransformBitwiseExpressionInternal(PEGTransformer &transformer,
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<ParsedExpression>
-	TransformBitwiseExpression(PEGTransformer &transformer, unique_ptr<ParsedExpression> additive_expression,
+	TransformBitwiseExpression(PEGTransformer &transformer, unique_ptr<ParsedExpression> bitwise_and_expression,
 	                           optional<vector<BinaryExpressionTail>> bitwise_expression_tail);
 	static unique_ptr<TransformResultValue> TransformBitwiseExpressionTailInternal(PEGTransformer &transformer,
 	                                                                               ParseResult &parse_result);
-	static BinaryExpressionTail TransformBitwiseExpressionTail(PEGTransformer &transformer, const string &bit_operator,
-	                                                           unique_ptr<ParsedExpression> additive_expression);
-	static unique_ptr<TransformResultValue> TransformBitOperatorInternal(PEGTransformer &transformer,
-	                                                                     ParseResult &parse_result);
+	static BinaryExpressionTail TransformBitwiseExpressionTail(PEGTransformer &transformer,
+	                                                           const string &bitwise_or_operator,
+	                                                           unique_ptr<ParsedExpression> bitwise_and_expression);
+	static unique_ptr<TransformResultValue> TransformBitwiseOrOperatorInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformBitwiseAndExpressionInternal(PEGTransformer &transformer,
+	                                                                              ParseResult &parse_result);
+	static unique_ptr<ParsedExpression>
+	TransformBitwiseAndExpression(PEGTransformer &transformer, unique_ptr<ParsedExpression> shift_expression,
+	                              optional<vector<BinaryExpressionTail>> bitwise_and_expression_tail);
+	static unique_ptr<TransformResultValue> TransformBitwiseAndExpressionTailInternal(PEGTransformer &transformer,
+	                                                                                  ParseResult &parse_result);
+	static BinaryExpressionTail TransformBitwiseAndExpressionTail(PEGTransformer &transformer,
+	                                                              const string &bitwise_and_operator,
+	                                                              unique_ptr<ParsedExpression> shift_expression);
+	static unique_ptr<TransformResultValue> TransformBitwiseAndOperatorInternal(PEGTransformer &transformer,
+	                                                                            ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformShiftExpressionInternal(PEGTransformer &transformer,
+	                                                                         ParseResult &parse_result);
+	static unique_ptr<ParsedExpression>
+	TransformShiftExpression(PEGTransformer &transformer, unique_ptr<ParsedExpression> additive_expression,
+	                         optional<vector<BinaryExpressionTail>> shift_expression_tail);
+	static unique_ptr<TransformResultValue> TransformShiftExpressionTailInternal(PEGTransformer &transformer,
+	                                                                             ParseResult &parse_result);
+	static BinaryExpressionTail TransformShiftExpressionTail(PEGTransformer &transformer, const string &shift_operator,
+	                                                         unique_ptr<ParsedExpression> additive_expression);
+	static unique_ptr<TransformResultValue> TransformShiftOperatorInternal(PEGTransformer &transformer,
+	                                                                       ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformAdditiveExpressionInternal(PEGTransformer &transformer,
 	                                                                            ParseResult &parse_result);
 	static unique_ptr<ParsedExpression>
@@ -8285,11 +8433,15 @@ public:
 	                                                                        ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformZoneIdentifier(PEGTransformer &transformer,
 	                                                            const Identifier &identifier);
-	static unique_ptr<TransformResultValue> TransformZoneIntervalWithIntervalInternal(PEGTransformer &transformer,
-	                                                                                  ParseResult &parse_result);
-	static unique_ptr<ParsedExpression> TransformZoneIntervalWithInterval(PEGTransformer &transformer,
-	                                                                      const string &string_literal,
-	                                                                      const optional<DatePartSpecifier> &interval);
+	static unique_ptr<TransformResultValue> TransformZoneIntervalRangeInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static unique_ptr<ParsedExpression>
+	TransformZoneIntervalRange(PEGTransformer &transformer, const string &string_literal,
+	                           const DatePartSpecifier &interval_to_interval_as_type);
+	static unique_ptr<TransformResultValue> TransformZoneIntervalLiteralInternal(PEGTransformer &transformer,
+	                                                                             ParseResult &parse_result);
+	static unique_ptr<ParsedExpression> TransformZoneIntervalLiteral(PEGTransformer &transformer,
+	                                                                 unique_ptr<ParsedExpression> interval_literal);
 	static unique_ptr<TransformResultValue> TransformZoneIntervalWithPrecisionInternal(PEGTransformer &transformer,
 	                                                                                   ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformZoneIntervalWithPrecision(PEGTransformer &transformer,
