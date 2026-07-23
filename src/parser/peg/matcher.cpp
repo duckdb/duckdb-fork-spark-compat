@@ -78,6 +78,15 @@ static bool ContinuesOperatorRun(const vector<MatcherToken> &tokens, idx_t idx) 
 	return IsGluedOperatorToken(token) && token.offset == prev.offset + prev.text.size();
 }
 
+//! True if the token at idx is offset-contiguous with the previous token (no whitespace between).
+//! Spark numeric-literal suffixes (2Y, 1L, ...) only apply glued to the number; '2 y' is an
+//! aliased value, not a typed literal.
+static bool TokenIsGluedToPrevious(const vector<MatcherToken> &tokens, idx_t idx) {
+	auto &prev = tokens[idx - 1];
+	auto &token = tokens[idx];
+	return token.offset == prev.offset + prev.text.size();
+}
+
 class KeywordMatcher : public Matcher {
 public:
 	static constexpr MatcherType TYPE = MatcherType::KEYWORD;
@@ -1007,7 +1016,8 @@ public:
 		}
 		state.tokens[state.token_index - 1].type = TokenType::NUMBER_LITERAL;
 		if (state.token_index < state.tokens.size() &&
-		    SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text)) {
+		    SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text) &&
+		    TokenIsGluedToPrevious(state.tokens, state.token_index)) {
 			state.UpdateMaxTokenIndex();
 			state.token_index++;
 		}
@@ -1024,7 +1034,8 @@ public:
 			return nullptr;
 		}
 		if (state.token_index < state.tokens.size() &&
-		    SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text)) {
+		    SparkCompatUtils::IsSparkPostfixToken(state.tokens[state.token_index].text) &&
+		    TokenIsGluedToPrevious(state.tokens, state.token_index)) {
 			number_text = number_text + state.tokens[state.token_index].text;
 			state.UpdateMaxTokenIndex();
 			state.token_index++;
