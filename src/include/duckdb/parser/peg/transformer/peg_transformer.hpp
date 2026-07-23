@@ -3584,6 +3584,15 @@ public:
 	                                                TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeInsertStatementTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeMultiInsertStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                     TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeMultiInsertStatementTrampoline(PEGTransformer &transformer,
+	                                                                               TransformStack &stack,
+	                                                                               TransformStackFrame &frame);
+	static void InitializeMultiInsertBranchTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                  TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeMultiInsertBranchTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeOrActionTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                         TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -7542,6 +7551,21 @@ public:
 	    const optional<vector<string>> &insert_column_list, InsertValues insert_values,
 	    optional<unique_ptr<OnConflictInfo>> on_conflict_clause,
 	    optional<vector<unique_ptr<ParsedExpression>>> returning_clause);
+	static unique_ptr<TransformResultValue> TransformMultiInsertStatementInternal(PEGTransformer &transformer,
+	                                                                              ParseResult &parse_result);
+	static unique_ptr<SQLStatement> TransformMultiInsertStatement(PEGTransformer &transformer,
+	                                                              optional<CommonTableExpressionMap> with_clause,
+	                                                              unique_ptr<BaseTableRef> insert_target,
+	                                                              vector<unique_ptr<SQLStatement>> multi_insert_branch);
+	static unique_ptr<TransformResultValue> TransformMultiInsertBranchInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static unique_ptr<SQLStatement> TransformMultiInsertBranch(PEGTransformer &transformer, const bool &has_result,
+	                                                           unique_ptr<BaseTableRef> insert_target,
+	                                                           const optional<vector<string>> &insert_column_list,
+	                                                           vector<unique_ptr<ParsedExpression>> expression_alias,
+	                                                           optional<unique_ptr<ParsedExpression>> where_clause,
+	                                                           optional<GroupByNode> group_by_clause,
+	                                                           optional<unique_ptr<ParsedExpression>> having_clause);
 	static unique_ptr<TransformResultValue> TransformOrActionInternal(PEGTransformer &transformer,
 	                                                                  ParseResult &parse_result);
 	static unique_ptr<TransformResultValue> TransformInsertOrReplaceInternal(PEGTransformer &transformer,

@@ -85,6 +85,8 @@ SQLStatement:
     - ExpressionStatement
     - ImportStatement
     - InsertStatement
+    - MultiInsertStatement
+    - MultiInsertBranch
     - LoadStatement
     - InstallStatement
     - UpdateExtensionsStatement

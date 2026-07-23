@@ -4,6 +4,7 @@ TopLevelStatement <- Statement? (';'+ / EndOfInput)
 
 Statement <-
 	CreateStatement /
+	MultiInsertStatement /
 	SelectStatement /
 	SetStatement /
 	ReadSettingStatement /

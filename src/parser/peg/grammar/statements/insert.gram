@@ -1,5 +1,12 @@
 InsertStatement <- WithClause? 'INSERT' OrAction? 'INTO' 'TABLE'? InsertTarget PartitionSpec? ByNameOrPosition? InsertColumnList? InsertValues OnConflictClause? ReturningClause?
 
+# Spark multi-insert: a shared leading FROM source fanned out into several INSERT branches, each with its own projection.
+# INSERT is an unreserved keyword the matcher accepts in alias position, so the source and each branch's projection use
+# AS-only aliasing (InsertTarget's alias is 'AS'-only; the projection reuses ExpressionAlias, which omits the implicit
+# AS-less alias form) to keep the INSERT keyword that separates branches from being swallowed as an alias.
+MultiInsertStatement <- WithClause? 'FROM' InsertTarget MultiInsertBranch+
+MultiInsertBranch <- 'INSERT' 'INTO' 'TABLE'? InsertTarget InsertColumnList? 'SELECT' List(ExpressionAlias) WhereClause? GroupByClause? HavingClause?
+
 OrAction <- InsertOrReplace / InsertOrIgnore
 InsertOrReplace <- 'OR' 'REPLACE'
 InsertOrIgnore <- 'OR' 'IGNORE'

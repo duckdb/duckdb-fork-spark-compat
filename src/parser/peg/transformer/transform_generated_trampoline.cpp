@@ -2071,6 +2071,12 @@ static const TransformFrameOps EXTRACT_DATE_PART_OPS = {"ExtractDatePart",
 static const TransformFrameOps INSERT_STATEMENT_OPS = {"InsertStatement",
                                                        &PEGTransformerFactory::InitializeInsertStatementTrampoline,
                                                        &PEGTransformerFactory::FinalizeInsertStatementTrampoline};
+static const TransformFrameOps MULTI_INSERT_STATEMENT_OPS = {
+    "MultiInsertStatement", &PEGTransformerFactory::InitializeMultiInsertStatementTrampoline,
+    &PEGTransformerFactory::FinalizeMultiInsertStatementTrampoline};
+static const TransformFrameOps MULTI_INSERT_BRANCH_OPS = {"MultiInsertBranch",
+                                                          &PEGTransformerFactory::InitializeMultiInsertBranchTrampoline,
+                                                          &PEGTransformerFactory::FinalizeMultiInsertBranchTrampoline};
 static const TransformFrameOps OR_ACTION_OPS = {"OrAction", &PEGTransformerFactory::InitializeOrActionTrampoline,
                                                 &PEGTransformerFactory::FinalizeOrActionTrampoline};
 static const TransformFrameOps INSERT_OR_REPLACE_OPS = {"InsertOrReplace",
@@ -3637,6 +3643,8 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"ExtractStringArgument", &EXTRACT_STRING_ARGUMENT_OPS},
 	    {"ExtractDatePart", &EXTRACT_DATE_PART_OPS},
 	    {"InsertStatement", &INSERT_STATEMENT_OPS},
+	    {"MultiInsertStatement", &MULTI_INSERT_STATEMENT_OPS},
+	    {"MultiInsertBranch", &MULTI_INSERT_BRANCH_OPS},
 	    {"OrAction", &OR_ACTION_OPS},
 	    {"InsertOrReplace", &INSERT_OR_REPLACE_OPS},
 	    {"InsertOrIgnore", &INSERT_OR_IGNORE_OPS},
@@ -19099,6 +19107,116 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeInsertStatementT
 	    TransformInsertStatement(transformer, std::move(with_clause), or_action, has_result, std::move(insert_target),
 	                             std::move(partition_spec), by_name_or_position, insert_column_list,
 	                             std::move(insert_values), std::move(on_conflict_clause), std::move(returning_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeMultiInsertStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                     TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto &repeat_pr = list_pr.GetChild(3).Cast<RepeatParseResult>();
+	auto repeat_children = repeat_pr.GetChildren();
+	auto dynamic_child_count = repeat_children.size();
+	frame.ReserveChildSlots(3 + dynamic_child_count - 1);
+	for (idx_t i = repeat_children.size(); i > 0; i--) {
+		auto child_idx = i - 1;
+		stack.PushFrame(repeat_children[child_idx].get(), MULTI_INSERT_BRANCH_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 2 + child_idx));
+	}
+	stack.PushFrame(list_pr.GetChild(2), INSERT_TARGET_OPS, TransformFrameResultTarget(frame.frame_index, 1));
+	auto &with_clause_opt = list_pr.GetChild(0).Cast<OptionalParseResult>();
+	if (with_clause_opt.HasResult()) {
+		stack.PushFrame(with_clause_opt.GetResult(), WITH_CLAUSE_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+	}
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizeMultiInsertStatementTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                              TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto &dynamic_repeat_pr = list_pr.GetChild(3).Cast<RepeatParseResult>();
+	auto dynamic_repeat_children = dynamic_repeat_pr.GetChildren();
+	auto dynamic_child_count = dynamic_repeat_children.size();
+	optional<CommonTableExpressionMap> with_clause {};
+	if (frame.child_results[0]) {
+		with_clause = frame.TakeResult<CommonTableExpressionMap>(0);
+	}
+	auto insert_target = frame.TakeResult<unique_ptr<BaseTableRef>>(1);
+	vector<unique_ptr<SQLStatement>> multi_insert_branch;
+	for (idx_t i = 2; i < 2 + dynamic_child_count; i++) {
+		multi_insert_branch.push_back(frame.TakeResult<unique_ptr<SQLStatement>>(i));
+	}
+	auto result = TransformMultiInsertStatement(transformer, std::move(with_clause), std::move(insert_target),
+	                                            std::move(multi_insert_branch));
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeMultiInsertBranchTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                  TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto list_items = ExtractParseResultsFromList(list_pr.GetChild(6));
+	auto dynamic_child_count = list_items.size();
+	frame.ReserveChildSlots(6 + dynamic_child_count - 1);
+	auto &having_clause_opt = list_pr.GetChild(9).Cast<OptionalParseResult>();
+	if (having_clause_opt.HasResult()) {
+		stack.PushFrame(having_clause_opt.GetResult(), HAVING_CLAUSE_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 5 + dynamic_child_count - 1));
+	}
+	auto &group_by_clause_opt = list_pr.GetChild(8).Cast<OptionalParseResult>();
+	if (group_by_clause_opt.HasResult()) {
+		stack.PushFrame(group_by_clause_opt.GetResult(), GROUP_BY_CLAUSE_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 4 + dynamic_child_count - 1));
+	}
+	auto &where_clause_opt = list_pr.GetChild(7).Cast<OptionalParseResult>();
+	if (where_clause_opt.HasResult()) {
+		stack.PushFrame(where_clause_opt.GetResult(), WHERE_CLAUSE_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 3 + dynamic_child_count - 1));
+	}
+	for (idx_t i = list_items.size(); i > 0; i--) {
+		auto child_idx = i - 1;
+		stack.PushFrame(list_items[child_idx].get(), EXPRESSION_ALIAS_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 2 + child_idx));
+	}
+	auto &insert_column_list_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	if (insert_column_list_opt.HasResult()) {
+		stack.PushFrame(insert_column_list_opt.GetResult(), INSERT_COLUMN_LIST_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 1));
+	}
+	stack.PushFrame(list_pr.GetChild(3), INSERT_TARGET_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizeMultiInsertBranchTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                           TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto dynamic_list_items = ExtractParseResultsFromList(list_pr.GetChild(6));
+	auto dynamic_child_count = dynamic_list_items.size();
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto insert_target = frame.TakeResult<unique_ptr<BaseTableRef>>(0);
+	optional<vector<string>> insert_column_list {};
+	if (frame.child_results[1]) {
+		insert_column_list = frame.TakeResult<vector<string>>(1);
+	}
+	vector<unique_ptr<ParsedExpression>> expression_alias;
+	for (idx_t i = 2; i < 2 + dynamic_child_count; i++) {
+		expression_alias.push_back(frame.TakeResult<unique_ptr<ParsedExpression>>(i));
+	}
+	optional<unique_ptr<ParsedExpression>> where_clause {};
+	if (frame.child_results[3 + dynamic_child_count - 1]) {
+		where_clause = frame.TakeResult<unique_ptr<ParsedExpression>>(3 + dynamic_child_count - 1);
+	}
+	optional<GroupByNode> group_by_clause {};
+	if (frame.child_results[4 + dynamic_child_count - 1]) {
+		group_by_clause = frame.TakeResult<GroupByNode>(4 + dynamic_child_count - 1);
+	}
+	optional<unique_ptr<ParsedExpression>> having_clause {};
+	if (frame.child_results[5 + dynamic_child_count - 1]) {
+		having_clause = frame.TakeResult<unique_ptr<ParsedExpression>>(5 + dynamic_child_count - 1);
+	}
+	auto result = TransformMultiInsertBranch(transformer, has_result, std::move(insert_target), insert_column_list,
+	                                         std::move(expression_alias), std::move(where_clause),
+	                                         std::move(group_by_clause), std::move(having_clause));
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 

@@ -3,6 +3,7 @@
 #include "duckdb/parser/peg/ast/partition_spec_entry.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
 #include "duckdb/parser/statement/insert_statement.hpp"
+#include "duckdb/parser/statement/multi_statement.hpp"
 #include "duckdb/parser/query_node/insert_query_node.hpp"
 #include "duckdb/parser/query_node/select_node.hpp"
 #include "duckdb/parser/statement/select_statement.hpp"
@@ -82,6 +83,59 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformInsertStatement(
 	}
 	if (returning_clause) {
 		node.returning_list = std::move(*returning_clause);
+	}
+	return std::move(result);
+}
+
+// MultiInsertBranch <- 'INSERT' 'INTO' 'TABLE'? InsertTarget InsertColumnList? 'SELECT' List(ExpressionAlias)
+//                      WhereClause? GroupByClause? HavingClause?
+// One branch of a Spark multi-insert: an INSERT target plus a projection over the (still absent) shared FROM
+// source, which TransformMultiInsertStatement grafts on afterwards. The projection reuses ExpressionAlias so
+// an AS-less alias does not swallow the INSERT keyword separating branches.
+unique_ptr<SQLStatement> PEGTransformerFactory::TransformMultiInsertBranch(
+    PEGTransformer &transformer, const bool &has_result, unique_ptr<BaseTableRef> insert_target,
+    const optional<vector<string>> &insert_column_list, vector<unique_ptr<ParsedExpression>> expression_alias,
+    optional<unique_ptr<ParsedExpression>> where_clause, optional<GroupByNode> group_by_clause,
+    optional<unique_ptr<ParsedExpression>> having_clause) {
+	auto insert = make_uniq<InsertStatement>();
+	auto &node = *insert->node;
+	node.qualified_name = insert_target->GetQualifiedName();
+	if (insert_column_list) {
+		node.columns = StringsToIdentifiers(*insert_column_list);
+	}
+	auto select_node = make_uniq<SelectNode>();
+	select_node->select_list = std::move(expression_alias);
+	if (where_clause) {
+		select_node->where_clause = std::move(*where_clause);
+	}
+	if (group_by_clause) {
+		select_node->groups = std::move(*group_by_clause);
+	}
+	if (having_clause) {
+		select_node->having = std::move(*having_clause);
+	}
+	auto select = make_uniq<SelectStatement>();
+	select->node = std::move(select_node);
+	node.select_statement = std::move(select);
+	return std::move(insert);
+}
+
+// MultiInsertStatement <- WithClause? 'FROM' InsertTarget MultiInsertBranch+
+// Spark multi-insert: one shared FROM source fanned out to several INSERT targets. Each branch is a from-less
+// INSERT ... SELECT; graft the shared FROM source (and shared WITH CTEs) onto every branch and emit them as a
+// MultiStatement that the planner unpacks and runs in order.
+unique_ptr<SQLStatement> PEGTransformerFactory::TransformMultiInsertStatement(
+    PEGTransformer &transformer, optional<CommonTableExpressionMap> with_clause, unique_ptr<BaseTableRef> insert_target,
+    vector<unique_ptr<SQLStatement>> multi_insert_branch) {
+	auto result = make_uniq<MultiStatement>();
+	for (auto &statement : multi_insert_branch) {
+		auto &insert_node = *statement->Cast<InsertStatement>().node;
+		if (with_clause) {
+			insert_node.cte_map = with_clause->Copy();
+		}
+		auto &select_node = insert_node.select_statement->node->Cast<SelectNode>();
+		select_node.from_table = insert_target->Copy();
+		result->statements.push_back(std::move(statement));
 	}
 	return std::move(result);
 }

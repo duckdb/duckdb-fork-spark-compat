@@ -7773,6 +7773,71 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformInsertStatement
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformMultiInsertStatementInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	optional<CommonTableExpressionMap> with_clause {};
+	auto &with_clause_opt = list_pr.GetChild(0).Cast<OptionalParseResult>();
+	if (with_clause_opt.HasResult()) {
+		auto with_clause_value = transformer.Transform<CommonTableExpressionMap>(with_clause_opt.GetResult());
+		with_clause = std::move(with_clause_value);
+	}
+	auto insert_target = transformer.Transform<unique_ptr<BaseTableRef>>(list_pr.GetChild(2));
+	vector<unique_ptr<SQLStatement>> multi_insert_branch;
+	auto &multi_insert_branch_repeat = list_pr.GetChild(3).Cast<RepeatParseResult>();
+	for (auto &multi_insert_branch_item : multi_insert_branch_repeat.GetChildren()) {
+		auto multi_insert_branch_value =
+		    transformer.Transform<unique_ptr<SQLStatement>>(multi_insert_branch_item.get());
+		multi_insert_branch.push_back(std::move(multi_insert_branch_value));
+	}
+	auto result = TransformMultiInsertStatement(transformer, std::move(with_clause), std::move(insert_target),
+	                                            std::move(multi_insert_branch));
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformMultiInsertBranchInternal(PEGTransformer &transformer,
+                                                                                           ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
+	auto insert_target = transformer.Transform<unique_ptr<BaseTableRef>>(list_pr.GetChild(3));
+	optional<vector<string>> insert_column_list {};
+	auto &insert_column_list_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	if (insert_column_list_opt.HasResult()) {
+		auto insert_column_list_value = transformer.Transform<vector<string>>(insert_column_list_opt.GetResult());
+		insert_column_list = insert_column_list_value;
+	}
+	vector<unique_ptr<ParsedExpression>> expression_alias;
+	auto expression_alias_items = ExtractParseResultsFromList(list_pr.GetChild(6));
+	for (auto &expression_alias_item : expression_alias_items) {
+		auto expression_alias_value = transformer.Transform<unique_ptr<ParsedExpression>>(expression_alias_item.get());
+		expression_alias.push_back(std::move(expression_alias_value));
+	}
+	optional<unique_ptr<ParsedExpression>> where_clause {};
+	auto &where_clause_opt = list_pr.GetChild(7).Cast<OptionalParseResult>();
+	if (where_clause_opt.HasResult()) {
+		auto where_clause_value = transformer.Transform<unique_ptr<ParsedExpression>>(where_clause_opt.GetResult());
+		where_clause = std::move(where_clause_value);
+	}
+	optional<GroupByNode> group_by_clause {};
+	auto &group_by_clause_opt = list_pr.GetChild(8).Cast<OptionalParseResult>();
+	if (group_by_clause_opt.HasResult()) {
+		auto group_by_clause_value = transformer.Transform<GroupByNode>(group_by_clause_opt.GetResult());
+		group_by_clause = std::move(group_by_clause_value);
+	}
+	optional<unique_ptr<ParsedExpression>> having_clause {};
+	auto &having_clause_opt = list_pr.GetChild(9).Cast<OptionalParseResult>();
+	if (having_clause_opt.HasResult()) {
+		auto having_clause_value = transformer.Transform<unique_ptr<ParsedExpression>>(having_clause_opt.GetResult());
+		having_clause = std::move(having_clause_value);
+	}
+	auto result = TransformMultiInsertBranch(transformer, has_result, std::move(insert_target), insert_column_list,
+	                                         std::move(expression_alias), std::move(where_clause),
+	                                         std::move(group_by_clause), std::move(having_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformOrActionInternal(PEGTransformer &transformer,
                                                                                   ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -11635,6 +11700,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"ExtractStringArgument", &PEGTransformerFactory::TransformExtractStringArgumentInternal},
 	    {"ExtractDatePart", &PEGTransformerFactory::TransformExtractDatePartInternal},
 	    {"InsertStatement", &PEGTransformerFactory::TransformInsertStatementInternal},
+	    {"MultiInsertStatement", &PEGTransformerFactory::TransformMultiInsertStatementInternal},
+	    {"MultiInsertBranch", &PEGTransformerFactory::TransformMultiInsertBranchInternal},
 	    {"OrAction", &PEGTransformerFactory::TransformOrActionInternal},
 	    {"InsertOrReplace", &PEGTransformerFactory::TransformInsertOrReplaceInternal},
 	    {"InsertOrIgnore", &PEGTransformerFactory::TransformInsertOrIgnoreInternal},
