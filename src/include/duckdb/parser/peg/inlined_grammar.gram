@@ -582,6 +582,7 @@ UnreservedKeyword <- 'ABORT' /
 'MATCH' /
 'MATCHED' /
 'MATERIALIZED' /
+'MAX' /
 'MAXVALUE' /
 'MERGE' /
 'METHOD' /
@@ -650,6 +651,7 @@ UnreservedKeyword <- 'ABORT' /
 'READ' /
 'REASSIGN' /
 'RECHECK' /
+'RECURSION' /
 'RECURSIVE' /
 'REF' /
 'REFERENCING' /
@@ -1772,11 +1774,12 @@ SimpleSelect <- SelectFrom WhereClause? GroupByClause? HavingClause? WindowClaus
 SelectFrom <- SelectFromClause / FromSelectClause
 SelectFromClause <- SelectClause FromClause?
 FromSelectClause <- FromClause SelectClause?
-WithStatement <- ColIdOrString InsertColumnList? UsingKey? 'AS' Materialized? CTEBody
+WithStatement <- ColIdOrString InsertColumnList? MaxRecursionLevel? UsingKey? 'AS' Materialized? CTEBody
 CTEBody <- CTESelectBody / CTEDMLBody
 CTESelectBody <- Parens(SelectStatementInternal)
 CTEDMLBody <- Parens(Statement)
 UsingKey <- 'USING' 'KEY' Parens(TargetList)
+MaxRecursionLevel <- 'MAX' 'RECURSION' 'LEVEL' NumberLiteral
 Materialized <- 'NOT'? 'MATERIALIZED'
 WithClause <- 'WITH' Recursive? List(WithStatement)
 Recursive <- 'RECURSIVE'

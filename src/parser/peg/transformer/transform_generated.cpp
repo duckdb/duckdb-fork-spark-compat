@@ -8896,21 +8896,24 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformWithStatementIn
 		auto insert_column_list_value = transformer.Transform<vector<string>>(insert_column_list_opt.GetResult());
 		insert_column_list = insert_column_list_value;
 	}
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
 	optional<vector<unique_ptr<ParsedExpression>>> using_key {};
-	auto &using_key_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	auto &using_key_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
 	if (using_key_opt.HasResult()) {
 		auto using_key_value = transformer.Transform<vector<unique_ptr<ParsedExpression>>>(using_key_opt.GetResult());
 		using_key = std::move(using_key_value);
 	}
 	optional<bool> materialized {};
-	auto &materialized_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	auto &materialized_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
 	if (materialized_opt.HasResult()) {
 		auto materialized_value = transformer.Transform<bool>(materialized_opt.GetResult());
 		materialized = materialized_value;
 	}
-	auto cte_body = transformer.Transform<unique_ptr<TableRef>>(list_pr.GetChild(5));
-	auto result = TransformWithStatement(transformer, col_id_or_string, insert_column_list, std::move(using_key),
-	                                     materialized, std::move(cte_body));
+	auto cte_body = transformer.Transform<unique_ptr<TableRef>>(list_pr.GetChild(6));
+	auto result = TransformWithStatement(transformer, col_id_or_string, insert_column_list, has_result,
+	                                     std::move(using_key), materialized, std::move(cte_body));
 	return make_uniq<TypedTransformResult<pair<Identifier, unique_ptr<CommonTableExpressionInfo>>>>(std::move(result));
 }
 

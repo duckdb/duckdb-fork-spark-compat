@@ -1927,6 +1927,7 @@ excluded_rules:
   - SimpleSelect
   - TableRef
   - WithClause
+  - MaxRecursionLevel
   - WindowDefinition
   - ExcludeOrExcept
   # expression.gram rules kept manual during incremental transformer generation migration

@@ -21256,13 +21256,13 @@ void PEGTransformerFactory::InitializeWithStatementTrampoline(PEGTransformer &tr
                                                               TransformStackFrame &frame) {
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
 	frame.ReserveChildSlots(5);
-	stack.PushFrame(list_pr.GetChild(5), CTEBODY_OPS, TransformFrameResultTarget(frame.frame_index, 4));
-	auto &materialized_opt = list_pr.GetChild(4).Cast<OptionalParseResult>();
+	stack.PushFrame(list_pr.GetChild(6), CTEBODY_OPS, TransformFrameResultTarget(frame.frame_index, 4));
+	auto &materialized_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
 	if (materialized_opt.HasResult()) {
 		stack.PushFrame(materialized_opt.GetResult(), MATERIALIZED_OPS,
 		                TransformFrameResultTarget(frame.frame_index, 3));
 	}
-	auto &using_key_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	auto &using_key_opt = list_pr.GetChild(3).Cast<OptionalParseResult>();
 	if (using_key_opt.HasResult()) {
 		stack.PushFrame(using_key_opt.GetResult(), USING_KEY_OPS, TransformFrameResultTarget(frame.frame_index, 2));
 	}
@@ -21277,11 +21277,15 @@ void PEGTransformerFactory::InitializeWithStatementTrampoline(PEGTransformer &tr
 unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeWithStatementTrampoline(PEGTransformer &transformer,
                                                                                         TransformStack &stack,
                                                                                         TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
 	auto col_id_or_string = frame.TakeResult<Identifier>(0);
 	optional<vector<string>> insert_column_list {};
 	if (frame.child_results[1]) {
 		insert_column_list = frame.TakeResult<vector<string>>(1);
 	}
+	bool has_result {};
+	auto &has_result_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	has_result = has_result_opt.HasResult();
 	optional<vector<unique_ptr<ParsedExpression>>> using_key {};
 	if (frame.child_results[2]) {
 		using_key = frame.TakeResult<vector<unique_ptr<ParsedExpression>>>(2);
@@ -21291,8 +21295,8 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeWithStatementTra
 		materialized = frame.TakeResult<bool>(3);
 	}
 	auto cte_body = frame.TakeResult<unique_ptr<TableRef>>(4);
-	auto result = TransformWithStatement(transformer, col_id_or_string, insert_column_list, std::move(using_key),
-	                                     materialized, std::move(cte_body));
+	auto result = TransformWithStatement(transformer, col_id_or_string, insert_column_list, has_result,
+	                                     std::move(using_key), materialized, std::move(cte_body));
 	return make_uniq<TypedTransformResult<pair<Identifier, unique_ptr<CommonTableExpressionInfo>>>>(std::move(result));
 }
 

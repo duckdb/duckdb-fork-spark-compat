@@ -1371,8 +1371,10 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeWithClauseTrampo
 pair<Identifier, unique_ptr<CommonTableExpressionInfo>>
 PEGTransformerFactory::TransformWithStatement(PEGTransformer &transformer, const Identifier &col_id_or_string,
                                               const optional<vector<string>> &insert_column_list,
+                                              const bool &has_result,
                                               optional<vector<unique_ptr<ParsedExpression>>> using_key,
                                               const optional<bool> &materialized, unique_ptr<TableRef> cte_body) {
+	// has_result is Spark's MAX RECURSION LEVEL clause, a per-CTE recursion ceiling that duckdb does not enforce; ignored.
 	auto result = make_uniq<CommonTableExpressionInfo>();
 	auto cte_name = col_id_or_string;
 	if (insert_column_list) {

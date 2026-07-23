@@ -7928,7 +7928,7 @@ public:
 	                                                                       ParseResult &parse_result);
 	static pair<Identifier, unique_ptr<CommonTableExpressionInfo>>
 	TransformWithStatement(PEGTransformer &transformer, const Identifier &col_id_or_string,
-	                       const optional<vector<string>> &insert_column_list,
+	                       const optional<vector<string>> &insert_column_list, const bool &has_result,
 	                       optional<vector<unique_ptr<ParsedExpression>>> using_key, const optional<bool> &materialized,
 	                       unique_ptr<TableRef> cte_body);
 	static unique_ptr<TransformResultValue> TransformCTEBodyInternal(PEGTransformer &transformer,

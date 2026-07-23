@@ -246,6 +246,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	unreserved_keyword_map.insert("match");
 	unreserved_keyword_map.insert("matched");
 	unreserved_keyword_map.insert("materialized");
+	unreserved_keyword_map.insert("max");
 	unreserved_keyword_map.insert("maxvalue");
 	unreserved_keyword_map.insert("merge");
 	unreserved_keyword_map.insert("method");
@@ -314,6 +315,7 @@ void PEGKeywordHelper::InitializeKeywordMaps() { // Renamed for clarity
 	unreserved_keyword_map.insert("read");
 	unreserved_keyword_map.insert("reassign");
 	unreserved_keyword_map.insert("recheck");
+	unreserved_keyword_map.insert("recursion");
 	unreserved_keyword_map.insert("recursive");
 	unreserved_keyword_map.insert("ref");
 	unreserved_keyword_map.insert("referencing");
