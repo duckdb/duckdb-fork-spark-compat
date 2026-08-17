@@ -292,6 +292,12 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 		UnpackStarArguments(function_children);
 	}
 
+	// Spark's mode(col[, deterministic]) leaves the tie-break to its hash map unless deterministic is
+	// given. The WITHIN GROUP form orders the input instead, so it stays on the ordered-set aggregate.
+	if (lowercase_name == "mode" && !within_group_clause && function_children.size() == 1) {
+		function_children.emplace_back(make_uniq<ConstantExpression>(Value::BOOLEAN(false)));
+	}
+
 	if (over_clause) {
 		if (transformer.in_window_definition) {
 			throw ParserException("window functions are not allowed in window definitions");
