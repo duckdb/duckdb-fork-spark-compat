@@ -3951,6 +3951,10 @@ public:
 	                                                TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizePipeWhereClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializePipeExtendClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                 TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizePipeExtendClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                 TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -7929,6 +7933,10 @@ public:
 	                                                                         ParseResult &parse_result);
 	static unique_ptr<SelectNode> TransformPipeWhereClause(PEGTransformer &transformer,
 	                                                       unique_ptr<ParsedExpression> where_clause);
+	static unique_ptr<TransformResultValue> TransformPipeExtendClauseInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static unique_ptr<SelectNode> TransformPipeExtendClause(PEGTransformer &transformer,
+	                                                        vector<unique_ptr<ParsedExpression>> target_list);
 	static unique_ptr<TransformResultValue> TransformSelectSetOpChainInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SelectStatement> TransformSelectSetOpChain(

@@ -165,6 +165,7 @@ SelectNode:
     - PipeOperatorClause
     - PipeSelectClause
     - PipeWhereClause
+    - PipeExtendClause
 
 SetOperationNode:
   type: "unique_ptr<SetOperationNode>"

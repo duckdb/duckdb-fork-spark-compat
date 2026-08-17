@@ -2326,6 +2326,9 @@ static const TransformFrameOps PIPE_SELECT_CLAUSE_OPS = {"PipeSelectClause",
 static const TransformFrameOps PIPE_WHERE_CLAUSE_OPS = {"PipeWhereClause",
                                                         &PEGTransformerFactory::InitializePipeWhereClauseTrampoline,
                                                         &PEGTransformerFactory::FinalizePipeWhereClauseTrampoline};
+static const TransformFrameOps PIPE_EXTEND_CLAUSE_OPS = {"PipeExtendClause",
+                                                         &PEGTransformerFactory::InitializePipeExtendClauseTrampoline,
+                                                         &PEGTransformerFactory::FinalizePipeExtendClauseTrampoline};
 static const TransformFrameOps SELECT_SET_OP_CHAIN_OPS = {"SelectSetOpChain",
                                                           &PEGTransformerFactory::InitializeSelectSetOpChainTrampoline,
                                                           &PEGTransformerFactory::FinalizeSelectSetOpChainTrampoline};
@@ -3774,6 +3777,7 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"PipeOperatorClause", &PIPE_OPERATOR_CLAUSE_OPS},
 	    {"PipeSelectClause", &PIPE_SELECT_CLAUSE_OPS},
 	    {"PipeWhereClause", &PIPE_WHERE_CLAUSE_OPS},
+	    {"PipeExtendClause", &PIPE_EXTEND_CLAUSE_OPS},
 	    {"SelectSetOpChain", &SELECT_SET_OP_CHAIN_OPS},
 	    {"SelectSetOpChainTail", &SELECT_SET_OP_CHAIN_TAIL_OPS},
 	    {"IntersectChain", &INTERSECT_CHAIN_OPS},
@@ -20945,6 +20949,21 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizePipeWhereClauseT
                                                                                           TransformStackFrame &frame) {
 	auto where_clause = frame.TakeResult<unique_ptr<ParsedExpression>>(0);
 	auto result = TransformPipeWhereClause(transformer, std::move(where_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializePipeExtendClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                 TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(2), TARGET_LIST_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizePipeExtendClauseTrampoline(PEGTransformer &transformer,
+                                                                                           TransformStack &stack,
+                                                                                           TransformStackFrame &frame) {
+	auto target_list = frame.TakeResult<vector<unique_ptr<ParsedExpression>>>(0);
+	auto result = TransformPipeExtendClause(transformer, std::move(target_list));
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 

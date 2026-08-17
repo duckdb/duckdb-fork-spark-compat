@@ -743,11 +743,27 @@ static bool IsBareRelationSelect(const QueryNode &node) {
 	return IsPlainUnqualifiedStar(*select_node.select_list[0]);
 }
 
-unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeWhereClause(PEGTransformer &transformer,
-                                                                       unique_ptr<ParsedExpression> where_clause) {
+// a pipe clause carries its input's columns forward, so it starts out projecting all of them
+static unique_ptr<SelectNode> MakeInputProjection() {
 	auto result = make_uniq<SelectNode>();
 	result->select_list.push_back(make_uniq<StarExpression>());
+	return result;
+}
+
+unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeWhereClause(PEGTransformer &transformer,
+                                                                       unique_ptr<ParsedExpression> where_clause) {
+	auto result = MakeInputProjection();
 	result->where_clause = std::move(where_clause);
+	return result;
+}
+
+unique_ptr<SelectNode>
+PEGTransformerFactory::TransformPipeExtendClause(PEGTransformer &transformer,
+                                                 vector<unique_ptr<ParsedExpression>> target_list) {
+	auto result = MakeInputProjection();
+	for (auto &expression : target_list) {
+		result->select_list.push_back(std::move(expression));
+	}
 	return result;
 }
 

@@ -8702,6 +8702,14 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeWhereClause
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeExtendClauseInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto target_list = transformer.Transform<vector<unique_ptr<ParsedExpression>>>(list_pr.GetChild(2));
+	auto result = TransformPipeExtendClause(transformer, std::move(target_list));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectSetOpChainInternal(PEGTransformer &transformer,
                                                                                           ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -11980,6 +11988,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"PipeOperatorClause", &PEGTransformerFactory::TransformPipeOperatorClauseInternal},
 	    {"PipeSelectClause", &PEGTransformerFactory::TransformPipeSelectClauseInternal},
 	    {"PipeWhereClause", &PEGTransformerFactory::TransformPipeWhereClauseInternal},
+	    {"PipeExtendClause", &PEGTransformerFactory::TransformPipeExtendClauseInternal},
 	    {"SelectSetOpChain", &PEGTransformerFactory::TransformSelectSetOpChainInternal},
 	    {"SelectSetOpChainTail", &PEGTransformerFactory::TransformSelectSetOpChainTailInternal},
 	    {"IntersectChain", &PEGTransformerFactory::TransformIntersectChainInternal},
