@@ -2616,6 +2616,15 @@ static const TransformFrameOps INNER_JOIN_OPS = {"InnerJoin", &PEGTransformerFac
                                                  &PEGTransformerFactory::FinalizeInnerJoinTrampoline};
 static const TransformFrameOps FROM_CLAUSE_OPS = {"FromClause", &PEGTransformerFactory::InitializeFromClauseTrampoline,
                                                   &PEGTransformerFactory::FinalizeFromClauseTrampoline};
+static const TransformFrameOps LATERAL_VIEW_CLAUSE_OPS = {"LateralViewClause",
+                                                          &PEGTransformerFactory::InitializeLateralViewClauseTrampoline,
+                                                          &PEGTransformerFactory::FinalizeLateralViewClauseTrampoline};
+static const TransformFrameOps LATERAL_VIEW_OUTER_OPS = {"LateralViewOuter",
+                                                         &PEGTransformerFactory::InitializeLateralViewOuterTrampoline,
+                                                         &PEGTransformerFactory::FinalizeLateralViewOuterTrampoline};
+static const TransformFrameOps LATERAL_VIEW_COLUMN_ALIASES_OPS = {
+    "LateralViewColumnAliases", &PEGTransformerFactory::InitializeLateralViewColumnAliasesTrampoline,
+    &PEGTransformerFactory::FinalizeLateralViewColumnAliasesTrampoline};
 static const TransformFrameOps WHERE_CLAUSE_OPS = {"WhereClause",
                                                    &PEGTransformerFactory::InitializeWhereClauseTrampoline,
                                                    &PEGTransformerFactory::FinalizeWhereClauseTrampoline};
@@ -3865,6 +3874,9 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"AntiJoin", &ANTI_JOIN_OPS},
 	    {"InnerJoin", &INNER_JOIN_OPS},
 	    {"FromClause", &FROM_CLAUSE_OPS},
+	    {"LateralViewClause", &LATERAL_VIEW_CLAUSE_OPS},
+	    {"LateralViewOuter", &LATERAL_VIEW_OUTER_OPS},
+	    {"LateralViewColumnAliases", &LATERAL_VIEW_COLUMN_ALIASES_OPS},
 	    {"WhereClause", &WHERE_CLAUSE_OPS},
 	    {"GroupByClause", &GROUP_BY_CLAUSE_OPS},
 	    {"HavingClause", &HAVING_CLAUSE_OPS},
@@ -23184,7 +23196,7 @@ void PEGTransformerFactory::InitializeFromClauseTrampoline(PEGTransformer &trans
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
 	auto list_items = ExtractParseResultsFromList(list_pr.GetChild(1));
 	auto dynamic_child_count = list_items.size();
-	frame.ReserveChildSlots(1 + dynamic_child_count - 1);
+	frame.ReserveChildSlots(2 + dynamic_child_count - 1);
 	for (idx_t i = list_items.size(); i > 0; i--) {
 		auto child_idx = i - 1;
 		stack.PushFrame(list_items[child_idx].get(), TABLE_REF_OPS,
@@ -23202,8 +23214,101 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeFromClauseTrampo
 	for (idx_t i = 0; i < 0 + dynamic_child_count; i++) {
 		table_ref.push_back(frame.TakeResult<unique_ptr<TableRef>>(i));
 	}
-	auto result = TransformFromClause(transformer, std::move(table_ref));
+	optional<vector<unique_ptr<TableRef>>> lateral_view_clause {};
+	if (dynamic_child_count > 0) {
+		vector<unique_ptr<TableRef>> lateral_view_clause_value;
+		for (idx_t i = 1; i < 1 + dynamic_child_count; i++) {
+			lateral_view_clause_value.push_back(frame.TakeResult<unique_ptr<TableRef>>(i));
+		}
+		lateral_view_clause = std::move(lateral_view_clause_value);
+	}
+	auto result = TransformFromClause(transformer, std::move(table_ref), std::move(lateral_view_clause));
 	return make_uniq<TypedTransformResult<unique_ptr<TableRef>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeLateralViewClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                  TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(4);
+	auto &lateral_view_column_aliases_opt = list_pr.GetChild(6).Cast<OptionalParseResult>();
+	if (lateral_view_column_aliases_opt.HasResult()) {
+		stack.PushFrame(lateral_view_column_aliases_opt.GetResult(), LATERAL_VIEW_COLUMN_ALIASES_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 3));
+	}
+	stack.PushFrame(list_pr.GetChild(4), TABLE_FUNCTION_ARGUMENTS_OPS,
+	                TransformFrameResultTarget(frame.frame_index, 2));
+	stack.PushFrame(list_pr.GetChild(3), QUALIFIED_TABLE_FUNCTION_OPS,
+	                TransformFrameResultTarget(frame.frame_index, 1));
+	auto &lateral_view_outer_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	if (lateral_view_outer_opt.HasResult()) {
+		stack.PushFrame(lateral_view_outer_opt.GetResult(), LATERAL_VIEW_OUTER_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 0));
+	}
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizeLateralViewClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                           TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	optional<bool> lateral_view_outer {};
+	if (frame.child_results[0]) {
+		lateral_view_outer = frame.TakeResult<bool>(0);
+	}
+	auto qualified_table_function = frame.TakeResult<QualifiedName>(1);
+	auto table_function_arguments = frame.TakeResult<vector<FunctionArgument>>(2);
+	optional<Identifier> identifier {};
+	auto &identifier_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	if (identifier_opt.HasResult()) {
+		identifier = identifier_opt.GetResult().Cast<IdentifierParseResult>().identifier;
+	}
+	optional<vector<string>> lateral_view_column_aliases {};
+	if (frame.child_results[3]) {
+		lateral_view_column_aliases = frame.TakeResult<vector<string>>(3);
+	}
+	auto result =
+	    TransformLateralViewClause(transformer, lateral_view_outer, qualified_table_function,
+	                               std::move(table_function_arguments), identifier, lateral_view_column_aliases);
+	return make_uniq<TypedTransformResult<unique_ptr<TableRef>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeLateralViewOuterTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                 TransformStackFrame &frame) {
+	frame.ReserveChildSlots(0);
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeLateralViewOuterTrampoline(PEGTransformer &transformer,
+                                                                                           TransformStack &stack,
+                                                                                           TransformStackFrame &frame) {
+	auto result = TransformLateralViewOuter(transformer);
+	return make_uniq<TypedTransformResult<bool>>(result);
+}
+
+void PEGTransformerFactory::InitializeLateralViewColumnAliasesTrampoline(PEGTransformer &transformer,
+                                                                         TransformStack &stack,
+                                                                         TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto list_items = ExtractParseResultsFromList(list_pr.GetChild(1));
+	auto dynamic_child_count = list_items.size();
+	frame.ReserveChildSlots(1 + dynamic_child_count - 1);
+	for (idx_t i = list_items.size(); i > 0; i--) {
+		auto child_idx = i - 1;
+		stack.PushFrame(list_items[child_idx].get(), COL_LABEL_OR_STRING_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 0 + child_idx));
+	}
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizeLateralViewColumnAliasesTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                  TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto dynamic_list_items = ExtractParseResultsFromList(list_pr.GetChild(1));
+	auto dynamic_child_count = dynamic_list_items.size();
+	vector<Identifier> col_label_or_string;
+	for (idx_t i = 0; i < 0 + dynamic_child_count; i++) {
+		col_label_or_string.push_back(frame.TakeResult<Identifier>(i));
+	}
+	auto result = TransformLateralViewColumnAliases(transformer, col_label_or_string);
+	return make_uniq<TypedTransformResult<vector<string>>>(result);
 }
 
 void PEGTransformerFactory::InitializeWhereClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,

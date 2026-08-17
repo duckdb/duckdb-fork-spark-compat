@@ -1481,6 +1481,39 @@ unique_ptr<TableRef> PEGTransformerFactory::TransformTableFunctionLateralOpt(
 	return std::move(result);
 }
 
+bool PEGTransformerFactory::TransformLateralViewOuter(PEGTransformer &transformer) {
+	return true;
+}
+
+vector<string> PEGTransformerFactory::TransformLateralViewColumnAliases(PEGTransformer &transformer,
+                                                                        const vector<Identifier> &col_label_or_string) {
+	return IdentifiersToStrings(col_label_or_string);
+}
+
+unique_ptr<TableRef> PEGTransformerFactory::TransformLateralViewClause(
+    PEGTransformer &transformer, const optional<bool> &lateral_view_outer,
+    const QualifiedName &qualified_table_function, vector<FunctionArgument> table_function_arguments,
+    const optional<Identifier> &identifier, const optional<vector<string>> &lateral_view_column_aliases) {
+	auto result = make_uniq<TableFunctionRef>();
+	auto function_name = qualified_table_function;
+	if (lateral_view_outer.value_or(false)) {
+		// the OUTER flag selects the generator variant that emits a NULL row for an empty collection
+		function_name = function_name.WithName(Identifier(function_name.Name().GetIdentifierName() + "_outer"));
+	}
+	result->function = make_uniq<FunctionExpression>(function_name, std::move(table_function_arguments));
+	if (identifier) {
+		result->alias = *identifier;
+	}
+	if (lateral_view_column_aliases) {
+		result->column_name_alias = StringsToIdentifiers(*lateral_view_column_aliases);
+	}
+	auto generator_rows = RewriteStackTableFunction(*result);
+	if (generator_rows) {
+		return generator_rows;
+	}
+	return std::move(result);
+}
+
 unique_ptr<TableRef> PEGTransformerFactory::TransformTableFunctionAliasColon(
     PEGTransformer &transformer, const Identifier &table_alias_colon, const QualifiedName &qualified_table_function,
     vector<FunctionArgument> table_function_arguments, const optional<bool> &with_ordinality,
@@ -2459,8 +2492,18 @@ static bool IsFromlessStarSubquery(TableRef &ref) {
 	return IsPlainUnqualifiedStar(*select_node->select_list[0]);
 }
 
-unique_ptr<TableRef> PEGTransformerFactory::TransformFromClause(PEGTransformer &transformer,
-                                                                vector<unique_ptr<TableRef>> table_ref) {
+static unique_ptr<TableRef> ImplicitCrossProduct(unique_ptr<TableRef> left, unique_ptr<TableRef> right) {
+	auto cross_product = make_uniq<JoinRef>();
+	cross_product->left = std::move(left);
+	cross_product->right = std::move(right);
+	cross_product->ref_type = JoinRefType::CROSS;
+	cross_product->is_implicit = true;
+	return std::move(cross_product);
+}
+
+unique_ptr<TableRef>
+PEGTransformerFactory::TransformFromClause(PEGTransformer &transformer, vector<unique_ptr<TableRef>> table_ref,
+                                           optional<vector<unique_ptr<TableRef>>> lateral_view_clause) {
 	unique_ptr<TableRef> result_table_ref;
 	for (auto &entry : table_ref) {
 		// cross joining a one-row, zero-column relation is an identity, so it is dropped from the FROM list
@@ -2471,16 +2514,17 @@ unique_ptr<TableRef> PEGTransformerFactory::TransformFromClause(PEGTransformer &
 			result_table_ref = std::move(entry);
 			continue;
 		}
-		auto cross_product = make_uniq<JoinRef>();
-		cross_product->left = std::move(result_table_ref);
-		cross_product->right = std::move(entry);
-		cross_product->ref_type = JoinRefType::CROSS;
-		cross_product->is_implicit = true;
-		result_table_ref = std::move(cross_product);
+		result_table_ref = ImplicitCrossProduct(std::move(result_table_ref), std::move(entry));
 	}
 	if (!result_table_ref) {
 		// the query would produce zero columns, which has no representation - keep the entry so binding reports it
 		result_table_ref = std::move(table_ref[0]);
+	}
+	if (lateral_view_clause) {
+		// each generator applies to the relation to its left, so the clauses associate left to right
+		for (auto &lateral_view : *lateral_view_clause) {
+			result_table_ref = ImplicitCrossProduct(std::move(result_table_ref), std::move(lateral_view));
+		}
 	}
 	return result_table_ref;
 }

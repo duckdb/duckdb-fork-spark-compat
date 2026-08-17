@@ -4385,6 +4385,19 @@ public:
 	                                           TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeFromClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeLateralViewClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                  TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeLateralViewClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeLateralViewOuterTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                 TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeLateralViewOuterTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeLateralViewColumnAliasesTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                         TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeLateralViewColumnAliasesTrampoline(PEGTransformer &transformer,
+	                                                                                   TransformStack &stack,
+	                                                                                   TransformStackFrame &frame);
 	static void InitializeWhereClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                            TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -8300,8 +8313,23 @@ public:
 	static JoinType TransformInnerJoin(PEGTransformer &transformer);
 	static unique_ptr<TransformResultValue> TransformFromClauseInternal(PEGTransformer &transformer,
 	                                                                    ParseResult &parse_result);
-	static unique_ptr<TableRef> TransformFromClause(PEGTransformer &transformer,
-	                                                vector<unique_ptr<TableRef>> table_ref);
+	static unique_ptr<TableRef> TransformFromClause(PEGTransformer &transformer, vector<unique_ptr<TableRef>> table_ref,
+	                                                optional<vector<unique_ptr<TableRef>>> lateral_view_clause);
+	static unique_ptr<TransformResultValue> TransformLateralViewClauseInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static unique_ptr<TableRef> TransformLateralViewClause(PEGTransformer &transformer,
+	                                                       const optional<bool> &lateral_view_outer,
+	                                                       const QualifiedName &qualified_table_function,
+	                                                       vector<FunctionArgument> table_function_arguments,
+	                                                       const optional<Identifier> &identifier,
+	                                                       const optional<vector<string>> &lateral_view_column_aliases);
+	static unique_ptr<TransformResultValue> TransformLateralViewOuterInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static bool TransformLateralViewOuter(PEGTransformer &transformer);
+	static unique_ptr<TransformResultValue> TransformLateralViewColumnAliasesInternal(PEGTransformer &transformer,
+	                                                                                  ParseResult &parse_result);
+	static vector<string> TransformLateralViewColumnAliases(PEGTransformer &transformer,
+	                                                        const vector<Identifier> &col_label_or_string);
 	static unique_ptr<TransformResultValue> TransformWhereClauseInternal(PEGTransformer &transformer,
 	                                                                     ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformWhereClause(PEGTransformer &transformer,

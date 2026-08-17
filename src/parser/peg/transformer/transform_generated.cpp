@@ -9909,8 +9909,70 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformFromClauseInter
 		auto table_ref_value = transformer.Transform<unique_ptr<TableRef>>(table_ref_item.get());
 		table_ref.push_back(std::move(table_ref_value));
 	}
-	auto result = TransformFromClause(transformer, std::move(table_ref));
+	optional<vector<unique_ptr<TableRef>>> lateral_view_clause {};
+	auto &lateral_view_clause_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	if (lateral_view_clause_opt.HasResult()) {
+		vector<unique_ptr<TableRef>> lateral_view_clause_value;
+		auto &lateral_view_clause_value_repeat_1 = lateral_view_clause_opt.GetResult().Cast<RepeatParseResult>();
+		for (auto &lateral_view_clause_value_item_1 : lateral_view_clause_value_repeat_1.GetChildren()) {
+			auto lateral_view_clause_value_value_1 =
+			    transformer.Transform<unique_ptr<TableRef>>(lateral_view_clause_value_item_1.get());
+			lateral_view_clause_value.push_back(std::move(lateral_view_clause_value_value_1));
+		}
+		lateral_view_clause = std::move(lateral_view_clause_value);
+	}
+	auto result = TransformFromClause(transformer, std::move(table_ref), std::move(lateral_view_clause));
 	return make_uniq<TypedTransformResult<unique_ptr<TableRef>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformLateralViewClauseInternal(PEGTransformer &transformer,
+                                                                                           ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	optional<bool> lateral_view_outer {};
+	auto &lateral_view_outer_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
+	if (lateral_view_outer_opt.HasResult()) {
+		auto lateral_view_outer_value = transformer.Transform<bool>(lateral_view_outer_opt.GetResult());
+		lateral_view_outer = lateral_view_outer_value;
+	}
+	auto qualified_table_function = transformer.Transform<QualifiedName>(list_pr.GetChild(3));
+	auto table_function_arguments = transformer.Transform<vector<FunctionArgument>>(list_pr.GetChild(4));
+	optional<Identifier> identifier {};
+	auto &identifier_opt = list_pr.GetChild(5).Cast<OptionalParseResult>();
+	if (identifier_opt.HasResult()) {
+		auto identifier_value = identifier_opt.GetResult().Cast<IdentifierParseResult>().identifier;
+		identifier = identifier_value;
+	}
+	optional<vector<string>> lateral_view_column_aliases {};
+	auto &lateral_view_column_aliases_opt = list_pr.GetChild(6).Cast<OptionalParseResult>();
+	if (lateral_view_column_aliases_opt.HasResult()) {
+		auto lateral_view_column_aliases_value =
+		    transformer.Transform<vector<string>>(lateral_view_column_aliases_opt.GetResult());
+		lateral_view_column_aliases = lateral_view_column_aliases_value;
+	}
+	auto result =
+	    TransformLateralViewClause(transformer, lateral_view_outer, qualified_table_function,
+	                               std::move(table_function_arguments), identifier, lateral_view_column_aliases);
+	return make_uniq<TypedTransformResult<unique_ptr<TableRef>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformLateralViewOuterInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto result = TransformLateralViewOuter(transformer);
+	return make_uniq<TypedTransformResult<bool>>(result);
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformLateralViewColumnAliasesInternal(PEGTransformer &transformer,
+                                                                 ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	vector<Identifier> col_label_or_string;
+	auto col_label_or_string_items = ExtractParseResultsFromList(list_pr.GetChild(1));
+	for (auto &col_label_or_string_item : col_label_or_string_items) {
+		auto col_label_or_string_value = transformer.Transform<Identifier>(col_label_or_string_item.get());
+		col_label_or_string.push_back(col_label_or_string_value);
+	}
+	auto result = TransformLateralViewColumnAliases(transformer, col_label_or_string);
+	return make_uniq<TypedTransformResult<vector<string>>>(result);
 }
 
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformWhereClauseInternal(PEGTransformer &transformer,
@@ -12005,6 +12067,9 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"AntiJoin", &PEGTransformerFactory::TransformAntiJoinInternal},
 	    {"InnerJoin", &PEGTransformerFactory::TransformInnerJoinInternal},
 	    {"FromClause", &PEGTransformerFactory::TransformFromClauseInternal},
+	    {"LateralViewClause", &PEGTransformerFactory::TransformLateralViewClauseInternal},
+	    {"LateralViewOuter", &PEGTransformerFactory::TransformLateralViewOuterInternal},
+	    {"LateralViewColumnAliases", &PEGTransformerFactory::TransformLateralViewColumnAliasesInternal},
 	    {"WhereClause", &PEGTransformerFactory::TransformWhereClauseInternal},
 	    {"GroupByClause", &PEGTransformerFactory::TransformGroupByClauseInternal},
 	    {"HavingClause", &PEGTransformerFactory::TransformHavingClauseInternal},

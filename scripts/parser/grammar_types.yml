@@ -573,6 +573,7 @@ TableRef:
   rules:
     - TableRef
     - FromClause
+    - LateralViewClause
     - JoinOrPivot
     - JoinClause
     - RegularJoinClause
@@ -717,6 +718,7 @@ StringList:
     - NameList
     - DottedIdentifier
     - ColumnAliases
+    - LateralViewColumnAliases
     - TriggerColumnList
     - StarSymbolColumnList
     - StarQualifierList
@@ -1161,6 +1163,7 @@ Bool:
     - AllKeyword
     - NotKeyword
     - Lateral
+    - LateralViewOuter
     - WithOrdinality
     - Asof
     - Materialized

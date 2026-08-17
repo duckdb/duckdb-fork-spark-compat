@@ -136,7 +136,11 @@ SemiJoin <- 'SEMI'
 AntiJoin <- 'ANTI'
 InnerJoin <- 'INNER'
 
-FromClause <- 'FROM' List(TableRef)
+# Spark attaches the generator clauses to the whole FROM list, not to a single relation
+FromClause <- 'FROM' List(TableRef) LateralViewClause*
+LateralViewClause <- 'LATERAL' 'VIEW' LateralViewOuter? QualifiedTableFunction TableFunctionArguments Identifier? LateralViewColumnAliases?
+LateralViewOuter <- 'OUTER'
+LateralViewColumnAliases <- 'AS' List(ColLabelOrString)
 WhereClause <- 'WHERE' Expression
 GroupByClause <- 'GROUP' 'BY' GroupByExpressions
 HavingClause <- 'HAVING' Expression
