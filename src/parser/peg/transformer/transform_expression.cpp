@@ -443,9 +443,6 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 	}
 	if (within_group_clause) {
 		auto order_by_clause = std::move(*within_group_clause);
-		if (distinct) {
-			throw ParserException("DISTINCT is not allowed in combination with WITHIN GROUP");
-		}
 		if (!order_modifier->orders.empty()) {
 			throw ParserException("Cannot use multiple ORDER BY statements with WITHIN GROUP");
 		}
@@ -453,7 +450,11 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 			throw InternalException("ORDER modifier for WITHIN GROUP is not initialized");
 		}
 		order_modifier->orders = std::move(order_by_clause);
+		// Aggregates that sort within group accept DISTINCT; ordered-set aggregates do not.
 		if (!AggregateSortsWithinGroup(lowercase_name)) {
+			if (distinct) {
+				throw ParserException("DISTINCT is not allowed in combination with WITHIN GROUP");
+			}
 			if (order_modifier->orders.size() != 1) {
 				throw ParserException("Cannot use multiple ORDER BY clauses with WITHIN GROUP");
 			}
