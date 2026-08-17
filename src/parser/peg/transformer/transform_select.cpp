@@ -2154,8 +2154,14 @@ PEGTransformerFactory::TransformUsingKey(PEGTransformer &transformer,
 }
 
 unique_ptr<SelectNode>
-PEGTransformerFactory::TransformSelectClause(PEGTransformer &transformer, optional<DistinctClause> distinct_clause,
-                                             optional<vector<unique_ptr<ParsedExpression>>> target_list) {
+PEGTransformerFactory::TransformSelectAllClause(PEGTransformer &transformer,
+                                                vector<unique_ptr<ParsedExpression>> target_list) {
+	return TransformSelectListClause(transformer, optional<DistinctClause>(), std::move(target_list));
+}
+
+unique_ptr<SelectNode>
+PEGTransformerFactory::TransformSelectListClause(PEGTransformer &transformer, optional<DistinctClause> distinct_clause,
+                                                 optional<vector<unique_ptr<ParsedExpression>>> target_list) {
 	auto result = make_uniq<SelectNode>();
 	if (distinct_clause && distinct_clause->is_distinct) {
 		auto distinct_modifier = make_uniq<DistinctModifier>();

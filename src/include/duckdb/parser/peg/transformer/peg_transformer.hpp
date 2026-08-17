@@ -4081,6 +4081,14 @@ public:
 	                                             TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeSelectClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSelectAllClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeSelectAllClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSelectListClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                 TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeSelectListClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeTargetListTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                           TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -8040,9 +8048,15 @@ public:
 	static bool TransformMaterialized(PEGTransformer &transformer, const bool &has_result);
 	static unique_ptr<TransformResultValue> TransformSelectClauseInternal(PEGTransformer &transformer,
 	                                                                      ParseResult &parse_result);
-	static unique_ptr<SelectNode> TransformSelectClause(PEGTransformer &transformer,
-	                                                    optional<DistinctClause> distinct_clause,
-	                                                    optional<vector<unique_ptr<ParsedExpression>>> target_list);
+	static unique_ptr<TransformResultValue> TransformSelectAllClauseInternal(PEGTransformer &transformer,
+	                                                                         ParseResult &parse_result);
+	static unique_ptr<SelectNode> TransformSelectAllClause(PEGTransformer &transformer,
+	                                                       vector<unique_ptr<ParsedExpression>> target_list);
+	static unique_ptr<TransformResultValue> TransformSelectListClauseInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static unique_ptr<SelectNode> TransformSelectListClause(PEGTransformer &transformer,
+	                                                        optional<DistinctClause> distinct_clause,
+	                                                        optional<vector<unique_ptr<ParsedExpression>>> target_list);
 	static unique_ptr<TransformResultValue> TransformTargetListInternal(PEGTransformer &transformer,
 	                                                                    ParseResult &parse_result);
 	static vector<unique_ptr<ParsedExpression>>

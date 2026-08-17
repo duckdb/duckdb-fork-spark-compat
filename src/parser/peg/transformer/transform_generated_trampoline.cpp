@@ -2417,6 +2417,12 @@ static const TransformFrameOps WITH_CLAUSE_OPS = {"WithClause", &PEGTransformerF
 static const TransformFrameOps SELECT_CLAUSE_OPS = {"SelectClause",
                                                     &PEGTransformerFactory::InitializeSelectClauseTrampoline,
                                                     &PEGTransformerFactory::FinalizeSelectClauseTrampoline};
+static const TransformFrameOps SELECT_ALL_CLAUSE_OPS = {"SelectAllClause",
+                                                        &PEGTransformerFactory::InitializeSelectAllClauseTrampoline,
+                                                        &PEGTransformerFactory::FinalizeSelectAllClauseTrampoline};
+static const TransformFrameOps SELECT_LIST_CLAUSE_OPS = {"SelectListClause",
+                                                         &PEGTransformerFactory::InitializeSelectListClauseTrampoline,
+                                                         &PEGTransformerFactory::FinalizeSelectListClauseTrampoline};
 static const TransformFrameOps TARGET_LIST_OPS = {"TargetList", &PEGTransformerFactory::InitializeTargetListTrampoline,
                                                   &PEGTransformerFactory::FinalizeTargetListTrampoline};
 static const TransformFrameOps COLUMN_ALIASES_OPS = {"ColumnAliases",
@@ -3801,6 +3807,8 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"Materialized", &MATERIALIZED_OPS},
 	    {"WithClause", &WITH_CLAUSE_OPS},
 	    {"SelectClause", &SELECT_CLAUSE_OPS},
+	    {"SelectAllClause", &SELECT_ALL_CLAUSE_OPS},
+	    {"SelectListClause", &SELECT_LIST_CLAUSE_OPS},
 	    {"TargetList", &TARGET_LIST_OPS},
 	    {"ColumnAliases", &COLUMN_ALIASES_OPS},
 	    {"DistinctClause", &DISTINCT_CLAUSE_OPS},
@@ -21611,6 +21619,42 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeMaterializedTram
 void PEGTransformerFactory::InitializeSelectClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
                                                              TransformStackFrame &frame) {
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto &choice_result = choice_pr.GetResult();
+	frame.ReserveChildSlots(1);
+	auto &ops_map = PEGTransformerFactory::GeneratedTrampolineOps();
+	auto ops_entry = ops_map.find(choice_result.name);
+	if (ops_entry == ops_map.end()) {
+		throw InternalException("No trampoline ops registered for rule '%s'", choice_result.name);
+	}
+	stack.PushFrame(choice_result, *ops_entry->second, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectClauseTrampoline(PEGTransformer &transformer,
+                                                                                       TransformStack &stack,
+                                                                                       TransformStackFrame &frame) {
+	auto result = frame.TakeResult<unique_ptr<SelectNode>>(0);
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeSelectAllClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(2), TARGET_LIST_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectAllClauseTrampoline(PEGTransformer &transformer,
+                                                                                          TransformStack &stack,
+                                                                                          TransformStackFrame &frame) {
+	auto target_list = frame.TakeResult<vector<unique_ptr<ParsedExpression>>>(0);
+	auto result = TransformSelectAllClause(transformer, std::move(target_list));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeSelectListClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                 TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
 	frame.ReserveChildSlots(2);
 	auto &target_list_opt = list_pr.GetChild(2).Cast<OptionalParseResult>();
 	if (target_list_opt.HasResult()) {
@@ -21623,9 +21667,9 @@ void PEGTransformerFactory::InitializeSelectClauseTrampoline(PEGTransformer &tra
 	}
 }
 
-unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectClauseTrampoline(PEGTransformer &transformer,
-                                                                                       TransformStack &stack,
-                                                                                       TransformStackFrame &frame) {
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectListClauseTrampoline(PEGTransformer &transformer,
+                                                                                           TransformStack &stack,
+                                                                                           TransformStackFrame &frame) {
 	optional<DistinctClause> distinct_clause {};
 	if (frame.child_results[0]) {
 		distinct_clause = frame.TakeResult<DistinctClause>(0);
@@ -21634,7 +21678,7 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectClauseTram
 	if (frame.child_results[1]) {
 		target_list = frame.TakeResult<vector<unique_ptr<ParsedExpression>>>(1);
 	}
-	auto result = TransformSelectClause(transformer, std::move(distinct_clause), std::move(target_list));
+	auto result = TransformSelectListClause(transformer, std::move(distinct_clause), std::move(target_list));
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 

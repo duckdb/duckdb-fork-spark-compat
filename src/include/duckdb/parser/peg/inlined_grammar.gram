@@ -1796,7 +1796,11 @@ MaxRecursionLevel <- 'MAX' 'RECURSION' 'LEVEL' NumberLiteral
 Materialized <- 'NOT'? 'MATERIALIZED'
 WithClause <- 'WITH' Recursive? List(WithStatement)
 Recursive <- 'RECURSIVE'
-SelectClause <- 'SELECT' DistinctClause? TargetList?
+# ALL is not reserved, so a target list starting with a column named "all" only parses
+# through the second alternative
+SelectClause <- SelectAllClause / SelectListClause
+SelectAllClause <- 'SELECT' 'ALL' TargetList
+SelectListClause <- 'SELECT' DistinctClause? TargetList?
 TargetList <- List(AliasedExpression)
 ColumnAliases <- Parens(List(ColLabelOrString))
 

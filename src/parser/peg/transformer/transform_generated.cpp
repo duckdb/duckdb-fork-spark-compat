@@ -9053,6 +9053,22 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformMaterializedInt
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectClauseInternal(PEGTransformer &transformer,
                                                                                       ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto result = transformer.Transform<unique_ptr<SelectNode>>(choice_pr.GetResult());
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectAllClauseInternal(PEGTransformer &transformer,
+                                                                                         ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto target_list = transformer.Transform<vector<unique_ptr<ParsedExpression>>>(list_pr.GetChild(2));
+	auto result = TransformSelectAllClause(transformer, std::move(target_list));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectListClauseInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
 	optional<DistinctClause> distinct_clause {};
 	auto &distinct_clause_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
 	if (distinct_clause_opt.HasResult()) {
@@ -9066,7 +9082,7 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectClauseInt
 		    transformer.Transform<vector<unique_ptr<ParsedExpression>>>(target_list_opt.GetResult());
 		target_list = std::move(target_list_value);
 	}
-	auto result = TransformSelectClause(transformer, std::move(distinct_clause), std::move(target_list));
+	auto result = TransformSelectListClause(transformer, std::move(distinct_clause), std::move(target_list));
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
@@ -11995,6 +12011,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"UsingKey", &PEGTransformerFactory::TransformUsingKeyInternal},
 	    {"Materialized", &PEGTransformerFactory::TransformMaterializedInternal},
 	    {"SelectClause", &PEGTransformerFactory::TransformSelectClauseInternal},
+	    {"SelectAllClause", &PEGTransformerFactory::TransformSelectAllClauseInternal},
+	    {"SelectListClause", &PEGTransformerFactory::TransformSelectListClauseInternal},
 	    {"TargetList", &PEGTransformerFactory::TransformTargetListInternal},
 	    {"ColumnAliases", &PEGTransformerFactory::TransformColumnAliasesInternal},
 	    {"DistinctClause", &PEGTransformerFactory::TransformDistinctClauseInternal},

@@ -160,6 +160,8 @@ SelectNode:
     - SelectFromClause
     - FromSelectClause
     - SelectClause
+    - SelectAllClause
+    - SelectListClause
     - PipeOperatorClause
     - PipeSelectClause
     - PipeWhereClause
