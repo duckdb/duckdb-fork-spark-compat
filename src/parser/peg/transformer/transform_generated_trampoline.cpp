@@ -2314,6 +2314,12 @@ static const TransformFrameOps SELECT_STATEMENT_OPS = {"SelectStatement",
 static const TransformFrameOps SELECT_STATEMENT_INTERNAL_OPS = {
     "SelectStatementInternal", &PEGTransformerFactory::InitializeSelectStatementInternalTrampoline,
     &PEGTransformerFactory::FinalizeSelectStatementInternalTrampoline};
+static const TransformFrameOps PIPE_OPERATOR_CHAIN_OPS = {"PipeOperatorChain",
+                                                          &PEGTransformerFactory::InitializePipeOperatorChainTrampoline,
+                                                          &PEGTransformerFactory::FinalizePipeOperatorChainTrampoline};
+static const TransformFrameOps PIPE_OPERATOR_CLAUSE_OPS = {
+    "PipeOperatorClause", &PEGTransformerFactory::InitializePipeOperatorClauseTrampoline,
+    &PEGTransformerFactory::FinalizePipeOperatorClauseTrampoline};
 static const TransformFrameOps SELECT_SET_OP_CHAIN_OPS = {"SelectSetOpChain",
                                                           &PEGTransformerFactory::InitializeSelectSetOpChainTrampoline,
                                                           &PEGTransformerFactory::FinalizeSelectSetOpChainTrampoline};
@@ -3743,6 +3749,8 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"TypeList", &TYPE_LIST_OPS},
 	    {"SelectStatement", &SELECT_STATEMENT_OPS},
 	    {"SelectStatementInternal", &SELECT_STATEMENT_INTERNAL_OPS},
+	    {"PipeOperatorChain", &PIPE_OPERATOR_CHAIN_OPS},
+	    {"PipeOperatorClause", &PIPE_OPERATOR_CLAUSE_OPS},
 	    {"SelectSetOpChain", &SELECT_SET_OP_CHAIN_OPS},
 	    {"SelectSetOpChainTail", &SELECT_SET_OP_CHAIN_TAIL_OPS},
 	    {"IntersectChain", &INTERSECT_CHAIN_OPS},
@@ -20814,6 +20822,66 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectStatementT
 	auto select_statement_internal = frame.TakeResult<unique_ptr<SelectStatement>>(0);
 	auto result = TransformSelectStatement(transformer, std::move(select_statement_internal));
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializePipeOperatorChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                  TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto &repeat_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	idx_t dynamic_child_count = 0;
+	if (repeat_opt.HasResult()) {
+		auto &repeat_pr = repeat_opt.GetResult().Cast<RepeatParseResult>();
+		auto repeat_children = repeat_pr.GetChildren();
+		dynamic_child_count = repeat_children.size();
+		frame.ReserveChildSlots(2 + dynamic_child_count - 1);
+		for (idx_t i = repeat_children.size(); i > 0; i--) {
+			auto child_idx = i - 1;
+			stack.PushFrame(repeat_children[child_idx].get(), PIPE_OPERATOR_CLAUSE_OPS,
+			                TransformFrameResultTarget(frame.frame_index, 1 + child_idx));
+		}
+	} else {
+		frame.ReserveChildSlots(2 - 1);
+	}
+	stack.PushFrame(list_pr.GetChild(0), SELECT_SET_OP_CHAIN_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizePipeOperatorChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                           TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	idx_t dynamic_child_count = 0;
+	auto &dynamic_repeat_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (dynamic_repeat_opt.HasResult()) {
+		auto &dynamic_repeat_pr = dynamic_repeat_opt.GetResult().Cast<RepeatParseResult>();
+		auto dynamic_repeat_children = dynamic_repeat_pr.GetChildren();
+		dynamic_child_count = dynamic_repeat_children.size();
+	}
+	auto select_set_op_chain = frame.TakeResult<unique_ptr<SelectStatement>>(0);
+	optional<vector<unique_ptr<SelectNode>>> pipe_operator_clause {};
+	if (dynamic_child_count > 0) {
+		vector<unique_ptr<SelectNode>> pipe_operator_clause_value;
+		for (idx_t i = 1; i < 1 + dynamic_child_count; i++) {
+			pipe_operator_clause_value.push_back(frame.TakeResult<unique_ptr<SelectNode>>(i));
+		}
+		pipe_operator_clause = std::move(pipe_operator_clause_value);
+	}
+	auto result =
+	    TransformPipeOperatorChain(transformer, std::move(select_set_op_chain), std::move(pipe_operator_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectStatement>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializePipeOperatorClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                   TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(1), SELECT_CLAUSE_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizePipeOperatorClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                            TransformStackFrame &frame) {
+	auto result = frame.TakeResult<unique_ptr<SelectNode>>(0);
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
 void PEGTransformerFactory::InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,

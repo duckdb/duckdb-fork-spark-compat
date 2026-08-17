@@ -653,7 +653,7 @@ static void PushSelectStatementInternalRemainder(TransformStack &stack, Transfor
 		stack.PushFrame(result_modifiers_opt.GetResult(), PEGTransformerFactory::GetTrampolineOps("ResultModifiers"),
 		                TransformFrameResultTarget(frame.frame_index, 2));
 	}
-	stack.PushFrame(list_pr.GetChild(1), PEGTransformerFactory::GetTrampolineOps("SelectSetOpChain"),
+	stack.PushFrame(list_pr.GetChild(1), PEGTransformerFactory::GetTrampolineOps("PipeOperatorChain"),
 	                TransformFrameResultTarget(frame.frame_index, 1));
 }
 
@@ -715,6 +715,21 @@ PEGTransformerFactory::FinalizeSelectStatementInternalTrampoline(PEGTransformer 
 		}
 	}
 	return make_uniq<TypedTransformResult<unique_ptr<SelectStatement>>>(std::move(select_statement));
+}
+
+unique_ptr<SelectStatement> PEGTransformerFactory::TransformPipeOperatorChain(
+    PEGTransformer &transformer, unique_ptr<SelectStatement> select_set_op_chain,
+    optional<vector<unique_ptr<SelectNode>>> pipe_operator_clause) {
+	auto select = std::move(select_set_op_chain);
+	if (!pipe_operator_clause) {
+		return select;
+	}
+	for (auto &pipe_node : *pipe_operator_clause) {
+		pipe_node->from_table = make_uniq<SubqueryRef>(std::move(select));
+		select = make_uniq<SelectStatement>();
+		select->node = std::move(pipe_node);
+	}
+	return select;
 }
 
 unique_ptr<SelectStatement> PEGTransformerFactory::TransformSelectSetOpChain(

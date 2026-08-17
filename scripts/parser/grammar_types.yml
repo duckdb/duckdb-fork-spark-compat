@@ -117,6 +117,7 @@ SelectStatement:
     - PivotStatement
     - UnpivotStatement
     - SelectStatementInternal
+    - PipeOperatorChain
     - SelectSetOpChain
     - IntersectChain
     - SelectAtom
@@ -159,6 +160,7 @@ SelectNode:
     - SelectFromClause
     - FromSelectClause
     - SelectClause
+    - PipeOperatorClause
 
 SetOperationNode:
   type: "unique_ptr<SetOperationNode>"

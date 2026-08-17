@@ -8657,6 +8657,35 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectStatement
 	return make_uniq<TypedTransformResult<unique_ptr<SQLStatement>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeOperatorChainInternal(PEGTransformer &transformer,
+                                                                                           ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto select_set_op_chain = transformer.Transform<unique_ptr<SelectStatement>>(list_pr.GetChild(0));
+	optional<vector<unique_ptr<SelectNode>>> pipe_operator_clause {};
+	auto &pipe_operator_clause_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (pipe_operator_clause_opt.HasResult()) {
+		vector<unique_ptr<SelectNode>> pipe_operator_clause_value;
+		auto &pipe_operator_clause_value_repeat_1 = pipe_operator_clause_opt.GetResult().Cast<RepeatParseResult>();
+		for (auto &pipe_operator_clause_value_item_1 : pipe_operator_clause_value_repeat_1.GetChildren()) {
+			auto pipe_operator_clause_value_value_1 =
+			    transformer.Transform<unique_ptr<SelectNode>>(pipe_operator_clause_value_item_1.get());
+			pipe_operator_clause_value.push_back(std::move(pipe_operator_clause_value_value_1));
+		}
+		pipe_operator_clause = std::move(pipe_operator_clause_value);
+	}
+	auto result =
+	    TransformPipeOperatorChain(transformer, std::move(select_set_op_chain), std::move(pipe_operator_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectStatement>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeOperatorClauseInternal(PEGTransformer &transformer,
+                                                                                            ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto select_clause = transformer.Transform<unique_ptr<SelectNode>>(list_pr.GetChild(1));
+	auto result = std::move(select_clause);
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectSetOpChainInternal(PEGTransformer &transformer,
                                                                                           ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -11853,6 +11882,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"PrepareStatement", &PEGTransformerFactory::TransformPrepareStatementInternal},
 	    {"TypeList", &PEGTransformerFactory::TransformTypeListInternal},
 	    {"SelectStatement", &PEGTransformerFactory::TransformSelectStatementInternal},
+	    {"PipeOperatorChain", &PEGTransformerFactory::TransformPipeOperatorChainInternal},
+	    {"PipeOperatorClause", &PEGTransformerFactory::TransformPipeOperatorClauseInternal},
 	    {"SelectSetOpChain", &PEGTransformerFactory::TransformSelectSetOpChainInternal},
 	    {"SelectSetOpChainTail", &PEGTransformerFactory::TransformSelectSetOpChainTailInternal},
 	    {"IntersectChain", &PEGTransformerFactory::TransformIntersectChainInternal},
