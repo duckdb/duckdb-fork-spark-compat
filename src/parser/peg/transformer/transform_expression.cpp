@@ -342,6 +342,12 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 					function_children[0].GetExpressionMutable() =
 					    make_uniq<FunctionExpression>(Identifier("-"), std::move(negate_children));
 				}
+				// mode is order-sensitive: the key also stays a sort key, so its tie-break follows the
+				// WITHIN GROUP direction the way the aggregate binder's ordered-set path does.
+				if (lowercase_name == "mode") {
+					order_modifier->orders.emplace_back(order_node.type, order_node.null_order,
+					                                    order_node.expression->Copy());
+				}
 				function_children.insert(function_children.begin(), std::move(order_node.expression));
 			}
 		}
