@@ -219,6 +219,11 @@ static void NameStructFields(vector<unique_ptr<ParsedExpression>> &arguments) {
 	}
 }
 
+// Ordinary aggregates whose WITHIN GROUP keys stay sort keys instead of being folded into an argument.
+static bool AggregateSortsWithinGroup(const string &lowercase_name) {
+	return lowercase_name == "listagg" || lowercase_name == "string_agg";
+}
+
 // Maps a Spark ordered-set aggregate (used with WITHIN GROUP) to its DuckDB name and validates the
 // argument count. Throws for any function that is not a supported ordered-set aggregate.
 static string MapOrderedSetAggregateName(const string &lowercase_name, idx_t argument_count,
@@ -313,21 +318,26 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 			if (!order_modifier->orders.empty()) {
 				throw ParserException("Cannot use multiple ORDER BY statements with WITHIN GROUP");
 			}
-			if (order_by_clause.size() != 1) {
-				throw ParserException("Cannot use multiple ORDER BY clauses with WITHIN GROUP");
+			if (AggregateSortsWithinGroup(lowercase_name)) {
+				order_modifier->orders = std::move(order_by_clause);
+			} else {
+				if (order_by_clause.size() != 1) {
+					throw ParserException("Cannot use multiple ORDER BY clauses with WITHIN GROUP");
+				}
+				lowercase_name =
+				    MapOrderedSetAggregateName(lowercase_name, function_children.size(), qualified_function);
+				auto &order_node = order_by_clause[0];
+				// Descending WITHIN GROUP is encoded by negating the percentile fraction, matching the
+				// aggregate binder's NegatePercentileValue.
+				if ((lowercase_name == "quantile_cont" || lowercase_name == "quantile_disc") &&
+				    order_node.type == OrderType::DESCENDING) {
+					vector<unique_ptr<ParsedExpression>> negate_children;
+					negate_children.push_back(std::move(function_children[0].GetExpressionMutable()));
+					function_children[0].GetExpressionMutable() =
+					    make_uniq<FunctionExpression>(Identifier("-"), std::move(negate_children));
+				}
+				function_children.insert(function_children.begin(), std::move(order_node.expression));
 			}
-			lowercase_name = MapOrderedSetAggregateName(lowercase_name, function_children.size(), qualified_function);
-			auto &order_node = order_by_clause[0];
-			// Descending WITHIN GROUP is encoded by negating the percentile fraction, matching the
-			// aggregate binder's NegatePercentileValue.
-			if ((lowercase_name == "quantile_cont" || lowercase_name == "quantile_disc") &&
-			    order_node.type == OrderType::DESCENDING) {
-				vector<unique_ptr<ParsedExpression>> negate_children;
-				negate_children.push_back(std::move(function_children[0].GetExpressionMutable()));
-				function_children[0].GetExpressionMutable() =
-				    make_uniq<FunctionExpression>(Identifier("-"), std::move(negate_children));
-			}
-			function_children.insert(function_children.begin(), std::move(order_node.expression));
 		}
 
 		transformer.in_window_definition = true;
@@ -443,10 +453,12 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformFunctionExpression(
 			throw InternalException("ORDER modifier for WITHIN GROUP is not initialized");
 		}
 		order_modifier->orders = std::move(order_by_clause);
-		if (order_modifier->orders.size() != 1) {
-			throw ParserException("Cannot use multiple ORDER BY clauses with WITHIN GROUP");
+		if (!AggregateSortsWithinGroup(lowercase_name)) {
+			if (order_modifier->orders.size() != 1) {
+				throw ParserException("Cannot use multiple ORDER BY clauses with WITHIN GROUP");
+			}
+			lowercase_name = MapOrderedSetAggregateName(lowercase_name, function_children.size(), qualified_function);
 		}
-		lowercase_name = MapOrderedSetAggregateName(lowercase_name, function_children.size(), qualified_function);
 	}
 	if (lowercase_name == "transform" && function_children.size() == 2) {
 		WrapHiddenLambdaArgument(function_children, 1, {"__spark_transform_hidden_arg"});
