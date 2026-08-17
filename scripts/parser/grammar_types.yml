@@ -161,6 +161,8 @@ SelectNode:
     - FromSelectClause
     - SelectClause
     - PipeOperatorClause
+    - PipeSelectClause
+    - PipeWhereClause
 
 SetOperationNode:
   type: "unique_ptr<SetOperationNode>"

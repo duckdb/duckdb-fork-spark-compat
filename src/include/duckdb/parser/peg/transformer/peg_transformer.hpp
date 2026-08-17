@@ -3943,6 +3943,14 @@ public:
 	static unique_ptr<TransformResultValue> FinalizePipeOperatorClauseTrampoline(PEGTransformer &transformer,
 	                                                                             TransformStack &stack,
 	                                                                             TransformStackFrame &frame);
+	static void InitializePipeSelectClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                 TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizePipeSelectClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializePipeWhereClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizePipeWhereClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                 TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -7894,6 +7902,12 @@ public:
 	                           optional<vector<unique_ptr<SelectNode>>> pipe_operator_clause);
 	static unique_ptr<TransformResultValue> TransformPipeOperatorClauseInternal(PEGTransformer &transformer,
 	                                                                            ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformPipeSelectClauseInternal(PEGTransformer &transformer,
+	                                                                          ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformPipeWhereClauseInternal(PEGTransformer &transformer,
+	                                                                         ParseResult &parse_result);
+	static unique_ptr<SelectNode> TransformPipeWhereClause(PEGTransformer &transformer,
+	                                                       unique_ptr<ParsedExpression> where_clause);
 	static unique_ptr<TransformResultValue> TransformSelectSetOpChainInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SelectStatement> TransformSelectSetOpChain(

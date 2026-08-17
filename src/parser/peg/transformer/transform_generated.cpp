@@ -8681,8 +8681,24 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeOperatorCha
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeOperatorClauseInternal(PEGTransformer &transformer,
                                                                                             ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto result = transformer.Transform<unique_ptr<SelectNode>>(choice_pr.GetResult());
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeSelectClauseInternal(PEGTransformer &transformer,
+                                                                                          ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
 	auto select_clause = transformer.Transform<unique_ptr<SelectNode>>(list_pr.GetChild(1));
 	auto result = std::move(select_clause);
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeWhereClauseInternal(PEGTransformer &transformer,
+                                                                                         ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto where_clause = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(1));
+	auto result = TransformPipeWhereClause(transformer, std::move(where_clause));
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
@@ -11884,6 +11900,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"SelectStatement", &PEGTransformerFactory::TransformSelectStatementInternal},
 	    {"PipeOperatorChain", &PEGTransformerFactory::TransformPipeOperatorChainInternal},
 	    {"PipeOperatorClause", &PEGTransformerFactory::TransformPipeOperatorClauseInternal},
+	    {"PipeSelectClause", &PEGTransformerFactory::TransformPipeSelectClauseInternal},
+	    {"PipeWhereClause", &PEGTransformerFactory::TransformPipeWhereClauseInternal},
 	    {"SelectSetOpChain", &PEGTransformerFactory::TransformSelectSetOpChainInternal},
 	    {"SelectSetOpChainTail", &PEGTransformerFactory::TransformSelectSetOpChainTailInternal},
 	    {"IntersectChain", &PEGTransformerFactory::TransformIntersectChainInternal},

@@ -24,6 +24,7 @@
 #include "duckdb/parser/query_node/update_query_node.hpp"
 #include "duckdb/parser/query_node/delete_query_node.hpp"
 #include "duckdb/parser/expression/columnref_expression.hpp"
+#include "duckdb/parser/expression/conjunction_expression.hpp"
 #include "duckdb/parser/expression/function_expression.hpp"
 #include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/expression/lambda_expression.hpp"
@@ -742,19 +743,37 @@ static bool IsBareRelationSelect(const QueryNode &node) {
 	return IsPlainUnqualifiedStar(*select_node.select_list[0]);
 }
 
-unique_ptr<SelectStatement> PEGTransformerFactory::TransformPipeOperatorChain(
-    PEGTransformer &transformer, unique_ptr<SelectStatement> select_set_op_chain,
-    optional<vector<unique_ptr<SelectNode>>> pipe_operator_clause) {
+unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeWhereClause(PEGTransformer &transformer,
+                                                                       unique_ptr<ParsedExpression> where_clause) {
+	auto result = make_uniq<SelectNode>();
+	result->select_list.push_back(make_uniq<StarExpression>());
+	result->where_clause = std::move(where_clause);
+	return result;
+}
+
+unique_ptr<SelectStatement>
+PEGTransformerFactory::TransformPipeOperatorChain(PEGTransformer &transformer,
+                                                  unique_ptr<SelectStatement> select_set_op_chain,
+                                                  optional<vector<unique_ptr<SelectNode>>> pipe_operator_clause) {
 	auto select = std::move(select_set_op_chain);
 	if (!pipe_operator_clause) {
 		return select;
 	}
 	for (auto &pipe_node : *pipe_operator_clause) {
-		// a pipe SELECT projects on top of its input, so while the input is still the bare relation its
+		// a pipe clause applies on top of its input, so while the input is still the bare relation its
 		// table names must stay visible - a subquery would hide them behind a single unnamed binding
 		if (IsBareRelationSelect(*select->node)) {
 			auto &input_node = select->node->Cast<SelectNode>();
 			input_node.select_list = std::move(pipe_node->select_list);
+			if (pipe_node->where_clause) {
+				if (input_node.where_clause) {
+					input_node.where_clause = make_uniq<ConjunctionExpression>(ExpressionType::CONJUNCTION_AND,
+					                                                           std::move(input_node.where_clause),
+					                                                           std::move(pipe_node->where_clause));
+				} else {
+					input_node.where_clause = std::move(pipe_node->where_clause);
+				}
+			}
 			for (auto &modifier : pipe_node->modifiers) {
 				input_node.modifiers.push_back(std::move(modifier));
 			}
