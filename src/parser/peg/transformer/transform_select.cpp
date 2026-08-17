@@ -461,15 +461,24 @@ bool CollectFromRelationNames(const TableRef &ref, identifier_set_t &names) {
 	}
 }
 
-//! A star that names a relation and carries nothing unnest cannot express. An unqualified star has no
-//! relation to unnest, and EXCLUDE/REPLACE/RENAME have no unnest equivalent.
-bool IsPlainQualifiedStar(const ParsedExpression &expr) {
+//! A star that stands for the input columns as they are: no COLUMNS, no EXCLUDE/REPLACE/RENAME.
+bool IsPlainStar(const ParsedExpression &expr) {
 	if (!StarExpression::IsStar(expr)) {
 		return false;
 	}
 	auto &star = expr.Cast<StarExpression>();
-	return !star.RelationName().empty() && !star.Expression() && star.ExcludeList().empty() &&
-	       star.ReplaceList().empty() && star.RenameList().empty();
+	return !star.Expression() && star.ExcludeList().empty() && star.ReplaceList().empty() && star.RenameList().empty();
+}
+
+//! A star that names a relation and carries nothing unnest cannot express. An unqualified star has no
+//! relation to unnest, and EXCLUDE/REPLACE/RENAME have no unnest equivalent.
+bool IsPlainQualifiedStar(const ParsedExpression &expr) {
+	return IsPlainStar(expr) && !expr.Cast<StarExpression>().RelationName().empty();
+}
+
+//! A bare `*`: every column the query's own FROM clause provides, unchanged.
+bool IsPlainUnqualifiedStar(const ParsedExpression &expr) {
+	return IsPlainStar(expr) && expr.Cast<StarExpression>().RelationName().empty();
 }
 
 //! A star expands over the input columns of its query, so a star qualified by a name the query's own FROM
@@ -717,6 +726,22 @@ PEGTransformerFactory::FinalizeSelectStatementInternalTrampoline(PEGTransformer 
 	return make_uniq<TypedTransformResult<unique_ptr<SelectStatement>>>(std::move(select_statement));
 }
 
+static bool IsBareRelationSelect(const QueryNode &node) {
+	if (node.type != QueryNodeType::SELECT_NODE || !node.modifiers.empty()) {
+		return false;
+	}
+	auto &select_node = node.Cast<SelectNode>();
+	if (!select_node.from_table || select_node.select_list.size() != 1) {
+		return false;
+	}
+	if (select_node.having || select_node.qualify || !select_node.groups.group_expressions.empty() ||
+	    !select_node.groups.grouping_sets.empty() ||
+	    select_node.aggregate_handling != AggregateHandling::STANDARD_HANDLING) {
+		return false;
+	}
+	return IsPlainUnqualifiedStar(*select_node.select_list[0]);
+}
+
 unique_ptr<SelectStatement> PEGTransformerFactory::TransformPipeOperatorChain(
     PEGTransformer &transformer, unique_ptr<SelectStatement> select_set_op_chain,
     optional<vector<unique_ptr<SelectNode>>> pipe_operator_clause) {
@@ -725,6 +750,16 @@ unique_ptr<SelectStatement> PEGTransformerFactory::TransformPipeOperatorChain(
 		return select;
 	}
 	for (auto &pipe_node : *pipe_operator_clause) {
+		// a pipe SELECT projects on top of its input, so while the input is still the bare relation its
+		// table names must stay visible - a subquery would hide them behind a single unnamed binding
+		if (IsBareRelationSelect(*select->node)) {
+			auto &input_node = select->node->Cast<SelectNode>();
+			input_node.select_list = std::move(pipe_node->select_list);
+			for (auto &modifier : pipe_node->modifiers) {
+				input_node.modifiers.push_back(std::move(modifier));
+			}
+			continue;
+		}
 		pipe_node->from_table = make_uniq<SubqueryRef>(std::move(select));
 		select = make_uniq<SelectStatement>();
 		select->node = std::move(pipe_node);
@@ -2399,12 +2434,10 @@ static bool IsFromlessStarSubquery(TableRef &ref) {
 	if (!select_node->groups.group_expressions.empty() || !select_node->modifiers.empty()) {
 		return false;
 	}
-	if (select_node->select_list.size() != 1 || !StarExpression::IsStar(*select_node->select_list[0])) {
+	if (select_node->select_list.size() != 1) {
 		return false;
 	}
-	auto &star = select_node->select_list[0]->Cast<StarExpression>();
-	return star.RelationName().empty() && !star.Expression() && star.ExcludeList().empty() &&
-	       star.ReplaceList().empty() && star.RenameList().empty();
+	return IsPlainUnqualifiedStar(*select_node->select_list[0]);
 }
 
 unique_ptr<TableRef> PEGTransformerFactory::TransformFromClause(PEGTransformer &transformer,
