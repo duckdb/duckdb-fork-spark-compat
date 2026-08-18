@@ -28,6 +28,7 @@ void ParserTokenizer::OnLastToken(TokenizeState state, string last_word, idx_t l
 	case TokenizeState::STRING_LITERAL:
 		throw ParserException::SyntaxError(sql, "unterminated string literal", optional_idx(last_pos));
 	case TokenizeState::QUOTED_IDENTIFIER:
+	case TokenizeState::BACKQUOTED_IDENTIFIER:
 		throw ParserException::SyntaxError(sql, "unterminated quoted identifier", optional_idx(last_pos));
 	default:
 		break;

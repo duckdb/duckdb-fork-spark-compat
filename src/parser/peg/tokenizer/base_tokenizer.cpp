@@ -161,6 +161,7 @@ TokenType BaseTokenizer::TokenizeStateToType(TokenizeState state) {
 	case TokenizeState::MULTI_LINE_COMMENT:
 		return TokenType::COMMENT;
 	case TokenizeState::QUOTED_IDENTIFIER:
+	case TokenizeState::BACKQUOTED_IDENTIFIER:
 		return TokenType::IDENTIFIER;
 	case TokenizeState::STRING_LITERAL:
 		return TokenType::STRING_LITERAL;
@@ -214,6 +215,7 @@ bool BaseTokenizer::IsUnterminatedState(TokenizeState state) {
 	switch (state) {
 	case TokenizeState::STRING_LITERAL:
 	case TokenizeState::QUOTED_IDENTIFIER:
+	case TokenizeState::BACKQUOTED_IDENTIFIER:
 	case TokenizeState::DOLLAR_QUOTED_STRING:
 		return true;
 	default:
@@ -250,6 +252,11 @@ bool BaseTokenizer::TokenizeInputInternal() {
 			}
 			if (c == '"') {
 				state = TokenizeState::QUOTED_IDENTIFIER;
+				last_pos = i;
+				break;
+			}
+			if (c == '`') {
+				state = TokenizeState::BACKQUOTED_IDENTIFIER;
 				last_pos = i;
 				break;
 			}
@@ -457,6 +464,18 @@ bool BaseTokenizer::TokenizeInputInternal() {
 		case TokenizeState::QUOTED_IDENTIFIER:
 			if (c == '"') {
 				if (i + 1 < sql.size() && sql[i + 1] == '"') {
+					// escaped - skip escape
+					i++;
+				} else {
+					PushToken(last_pos, i + 1, TokenType::IDENTIFIER);
+					last_pos = i + 1;
+					state = TokenizeState::STANDARD;
+				}
+			}
+			break;
+		case TokenizeState::BACKQUOTED_IDENTIFIER:
+			if (c == '`') {
+				if (i + 1 < sql.size() && sql[i + 1] == '`') {
 					// escaped - skip escape
 					i++;
 				} else {

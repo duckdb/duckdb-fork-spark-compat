@@ -588,44 +588,22 @@ public:
 		return false;
 	}
 
-	//! Check if the current position starts a backtick-quoted identifier sequence: ` ... `
-	static bool IsBacktickSequence(MatchState &state) {
-		if (state.token_index >= state.tokens.size() || state.tokens[state.token_index].text != "`") {
-			return false;
-		}
-		// Scan forward for the closing backtick
-		for (idx_t i = state.token_index + 2; i < state.tokens.size(); i++) {
-			if (state.tokens[i].text == "`") {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	//! Consume all tokens from opening ` through closing `, returning the concatenated inner text
-	static string ConsumeBacktickSequence(MatchState &state) {
-		// state.token_index points at opening `
-		idx_t start = state.token_index + 1;
-		string result;
-		for (idx_t i = start; i < state.tokens.size(); i++) {
-			if (state.tokens[i].text == "`") {
-				// Found closing backtick
-				state.token_index = i + 1;
-				state.UpdateMaxTokenIndex();
-				return result;
-			}
-			result += state.tokens[i].text;
-		}
-		// Should not reach here if IsBacktickSequence returned true
-		return result;
-	}
-
 	//! Consume the number token and the word glued to it, returning the concatenated text
 	static string ConsumeGluedNumberIdentifier(MatchState &state) {
 		string result = state.tokens[state.token_index].text + state.tokens[state.token_index + 1].text;
 		state.token_index += 2;
 		state.UpdateMaxTokenIndex();
 		return state.preserve_identifier_case ? result : StringUtil::Lower(result);
+	}
+
+	string UnquoteIdentifier(const string &text, bool preserve_case) const {
+		if (IsQuoted(text)) {
+			return StringUtil::Replace(text.substr(1, text.size() - 2), "\"\"", "\"");
+		}
+		if (IsBacktickQuoted(text)) {
+			return StringUtil::Replace(text.substr(1, text.size() - 2), "``", "`");
+		}
+		return preserve_case ? text : StringUtil::Lower(text);
 	}
 
 	bool IsSingleQuoted(const string &text) const {
@@ -655,11 +633,6 @@ public:
 	}
 
 	MatchResultType Match(MatchState &state) const override {
-		if (IsBacktickSequence(state)) {
-			ConsumeBacktickSequence(state);
-			state.tokens[state.token_index - 1].type = GetTokenType();
-			return MatchResultType::SUCCESS;
-		}
 		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
 			ConsumeGluedNumberIdentifier(state);
 			state.tokens[state.token_index - 1].type = GetTokenType();
@@ -677,13 +650,6 @@ public:
 			return nullptr;
 		}
 
-		// Handle backtick-quoted identifier: ` ... `
-		if (IsBacktickSequence(state)) {
-			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
-			string result_text = ConsumeBacktickSequence(state);
-			return state.allocator.Allocate(make_uniq<IdentifierParseResult>(result_text, start_offset));
-		}
-
 		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
 			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
 			string result_text = ConsumeGluedNumberIdentifier(state);
@@ -696,13 +662,7 @@ public:
 			return nullptr;
 		}
 
-		string result_text = token_text;
-		if (IsQuoted(result_text)) {
-			result_text = result_text.substr(1, result_text.size() - 2);
-			result_text = StringUtil::Replace(result_text, "\"\"", "\"");
-		} else if (!state.preserve_identifier_case) {
-			result_text = StringUtil::Lower(result_text);
-		}
+		string result_text = UnquoteIdentifier(token_text, state.preserve_identifier_case);
 		if (IsSingleQuoted(result_text) && SupportsStringLiteral()) {
 			result_text = result_text.substr(1, result_text.size() - 2);
 			result_text = StringUtil::Replace(result_text, "''", "'");
@@ -853,11 +813,6 @@ public:
 	}
 
 	MatchResultType Match(MatchState &state) const override {
-		if (IsBacktickSequence(state)) {
-			ConsumeBacktickSequence(state);
-			state.tokens[state.token_index - 1].type = GetTokenType();
-			return MatchResultType::SUCCESS;
-		}
 		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
 			ConsumeGluedNumberIdentifier(state);
 			state.tokens[state.token_index - 1].type = GetTokenType();
@@ -875,13 +830,6 @@ public:
 			return nullptr;
 		}
 
-		// Handle backtick-quoted identifier: ` ... `
-		if (IsBacktickSequence(state)) {
-			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
-			string result_text = ConsumeBacktickSequence(state);
-			return state.allocator.Allocate(make_uniq<IdentifierParseResult>(result_text, start_offset));
-		}
-
 		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
 			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
 			string result_text = ConsumeGluedNumberIdentifier(state);
@@ -893,13 +841,7 @@ public:
 		if (!MatchReservedIdentifier(state)) {
 			return nullptr;
 		}
-		string result_text = token_text;
-		if (IsQuoted(result_text)) {
-			result_text = result_text.substr(1, result_text.size() - 2);
-			result_text = StringUtil::Replace(result_text, "\"\"", "\"");
-		} else if (!state.preserve_identifier_case) {
-			result_text = StringUtil::Lower(result_text);
-		}
+		string result_text = UnquoteIdentifier(token_text, state.preserve_identifier_case);
 		return state.allocator.Allocate(make_uniq<IdentifierParseResult>(result_text, start_offset));
 	}
 
