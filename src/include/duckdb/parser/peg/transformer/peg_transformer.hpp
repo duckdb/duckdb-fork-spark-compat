@@ -3975,6 +3975,11 @@ public:
 	                                                  TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizePipeOrderByClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializePipeLimitOffsetClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                      TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizePipeLimitOffsetClauseTrampoline(PEGTransformer &transformer,
+	                                                                                TransformStack &stack,
+	                                                                                TransformStackFrame &frame);
 	static void InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                 TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -7979,6 +7984,10 @@ public:
 	                                                                           ParseResult &parse_result);
 	static unique_ptr<SelectNode> TransformPipeOrderByClause(PEGTransformer &transformer,
 	                                                         vector<OrderByNode> order_by_clause);
+	static unique_ptr<TransformResultValue> TransformPipeLimitOffsetClauseInternal(PEGTransformer &transformer,
+	                                                                               ParseResult &parse_result);
+	static unique_ptr<SelectNode> TransformPipeLimitOffsetClause(PEGTransformer &transformer,
+	                                                             unique_ptr<ResultModifier> limit_offset);
 	static unique_ptr<TransformResultValue> TransformSelectSetOpChainInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SelectStatement> TransformSelectSetOpChain(

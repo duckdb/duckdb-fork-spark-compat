@@ -816,6 +816,14 @@ unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeOrderByClause(PEGTran
 	return result;
 }
 
+unique_ptr<SelectNode>
+PEGTransformerFactory::TransformPipeLimitOffsetClause(PEGTransformer &transformer,
+                                                      unique_ptr<ResultModifier> limit_offset) {
+	auto result = MakeInputProjection();
+	result->modifiers.push_back(std::move(limit_offset));
+	return result;
+}
+
 static optional_ptr<JoinRef> PipeJoin(SelectNode &pipe_node) {
 	if (!pipe_node.from_table || pipe_node.from_table->type != TableReferenceType::JOIN) {
 		return nullptr;

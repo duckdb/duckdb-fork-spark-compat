@@ -170,6 +170,7 @@ SelectNode:
     - PipeDropClause
     - PipeJoinClause
     - PipeOrderByClause
+    - PipeLimitOffsetClause
 
 SetOperationNode:
   type: "unique_ptr<SetOperationNode>"
