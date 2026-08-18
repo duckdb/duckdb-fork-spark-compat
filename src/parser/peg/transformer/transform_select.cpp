@@ -790,6 +790,16 @@ unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeSetClause(
 	return result;
 }
 
+unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeDropClause(PEGTransformer &transformer,
+                                                                      const vector<Identifier> &column_name) {
+	auto result = MakeInputProjection();
+	auto &exclude_list = result->select_list[0]->Cast<StarExpression>().ExcludeListMutable();
+	for (auto &name : column_name) {
+		exclude_list.insert(QualifiedColumnName(name));
+	}
+	return result;
+}
+
 unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeJoinClause(PEGTransformer &transformer,
                                                                       unique_ptr<TableRef> join_clause) {
 	auto result = MakeInputProjection();

@@ -8733,6 +8733,19 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeSetAssignme
 	return make_uniq<TypedTransformResult<pair<Identifier, unique_ptr<ParsedExpression>>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeDropClauseInternal(PEGTransformer &transformer,
+                                                                                        ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	vector<Identifier> column_name;
+	auto column_name_items = ExtractParseResultsFromList(list_pr.GetChild(2));
+	for (auto &column_name_item : column_name_items) {
+		auto column_name_value = column_name_item.get().Cast<IdentifierParseResult>().identifier;
+		column_name.push_back(column_name_value);
+	}
+	auto result = TransformPipeDropClause(transformer, column_name);
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeJoinClauseInternal(PEGTransformer &transformer,
                                                                                         ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -12022,6 +12035,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"PipeExtendClause", &PEGTransformerFactory::TransformPipeExtendClauseInternal},
 	    {"PipeSetClause", &PEGTransformerFactory::TransformPipeSetClauseInternal},
 	    {"PipeSetAssignment", &PEGTransformerFactory::TransformPipeSetAssignmentInternal},
+	    {"PipeDropClause", &PEGTransformerFactory::TransformPipeDropClauseInternal},
 	    {"PipeJoinClause", &PEGTransformerFactory::TransformPipeJoinClauseInternal},
 	    {"SelectSetOpChain", &PEGTransformerFactory::TransformSelectSetOpChainInternal},
 	    {"SelectSetOpChainTail", &PEGTransformerFactory::TransformSelectSetOpChainTailInternal},

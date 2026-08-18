@@ -167,6 +167,7 @@ SelectNode:
     - PipeWhereClause
     - PipeExtendClause
     - PipeSetClause
+    - PipeDropClause
     - PipeJoinClause
 
 SetOperationNode:
