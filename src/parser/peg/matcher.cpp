@@ -86,6 +86,28 @@ static bool TokenIsGluedToPrevious(const vector<MatcherToken> &tokens, idx_t idx
 	return token.offset == prev.offset + prev.text.size();
 }
 
+//! True if the number token at idx and the word glued to it form a single Spark identifier
+//! (2012_s): Spark's lexer reads a digit-initial run of letters/digits/underscores as one
+//! IDENTIFIER, preferring it over a number on length - except for typed-literal suffixes (2Y, 1L).
+static bool NumberStartsGluedIdentifier(const vector<MatcherToken> &tokens, idx_t idx) {
+	if (idx + 1 >= tokens.size()) {
+		return false;
+	}
+	auto &number = tokens[idx];
+	auto &word = tokens[idx + 1];
+	// a leading '.' is also tokenized as a number, so 'a.b' must not glue into one identifier
+	if (number.text.empty() || !StringUtil::CharacterIsDigit(number.text[0])) {
+		return false;
+	}
+	if (word.text.empty() || !(StringUtil::CharacterIsAlpha(word.text[0]) || word.text[0] == '_')) {
+		return false;
+	}
+	if (SparkCompatUtils::IsSparkPostfixToken(word.text)) {
+		return false;
+	}
+	return TokenIsGluedToPrevious(tokens, idx + 1);
+}
+
 class KeywordMatcher : public Matcher {
 public:
 	static constexpr MatcherType TYPE = MatcherType::KEYWORD;
@@ -598,6 +620,14 @@ public:
 		return result;
 	}
 
+	//! Consume the number token and the word glued to it, returning the concatenated text
+	static string ConsumeGluedNumberIdentifier(MatchState &state) {
+		string result = state.tokens[state.token_index].text + state.tokens[state.token_index + 1].text;
+		state.token_index += 2;
+		state.UpdateMaxTokenIndex();
+		return state.preserve_identifier_case ? result : StringUtil::Lower(result);
+	}
+
 	bool IsSingleQuoted(const string &text) const {
 		if (text.front() == '\'' && text.back() == '\'') {
 			return true;
@@ -630,6 +660,11 @@ public:
 			state.tokens[state.token_index - 1].type = GetTokenType();
 			return MatchResultType::SUCCESS;
 		}
+		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
+			ConsumeGluedNumberIdentifier(state);
+			state.tokens[state.token_index - 1].type = GetTokenType();
+			return MatchResultType::SUCCESS;
+		}
 		if (!MatchIdentifier(state)) {
 			return MatchResultType::FAIL;
 		}
@@ -646,6 +681,12 @@ public:
 		if (IsBacktickSequence(state)) {
 			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
 			string result_text = ConsumeBacktickSequence(state);
+			return state.allocator.Allocate(make_uniq<IdentifierParseResult>(result_text, start_offset));
+		}
+
+		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
+			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
+			string result_text = ConsumeGluedNumberIdentifier(state);
 			return state.allocator.Allocate(make_uniq<IdentifierParseResult>(result_text, start_offset));
 		}
 
@@ -817,6 +858,11 @@ public:
 			state.tokens[state.token_index - 1].type = GetTokenType();
 			return MatchResultType::SUCCESS;
 		}
+		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
+			ConsumeGluedNumberIdentifier(state);
+			state.tokens[state.token_index - 1].type = GetTokenType();
+			return MatchResultType::SUCCESS;
+		}
 		if (!MatchReservedIdentifier(state)) {
 			return MatchResultType::FAIL;
 		}
@@ -833,6 +879,12 @@ public:
 		if (IsBacktickSequence(state)) {
 			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
 			string result_text = ConsumeBacktickSequence(state);
+			return state.allocator.Allocate(make_uniq<IdentifierParseResult>(result_text, start_offset));
+		}
+
+		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
+			auto start_offset = optional_idx(state.tokens[state.token_index].offset);
+			string result_text = ConsumeGluedNumberIdentifier(state);
 			return state.allocator.Allocate(make_uniq<IdentifierParseResult>(result_text, start_offset));
 		}
 
@@ -1063,6 +1115,10 @@ private:
 		}
 		// A lone '.' is a dot operator, not a number literal (e.g., '?.method()' should not consume '.')
 		if (token_text.size() == 1 && token_text[0] == '.') {
+			return false;
+		}
+		// 2012_s is a Spark identifier, not the number 2012 followed by an alias
+		if (NumberStartsGluedIdentifier(state.tokens, state.token_index)) {
 			return false;
 		}
 		bool scientific_notation = false;
