@@ -23,6 +23,7 @@
 #include "duckdb/parser/query_node/insert_query_node.hpp"
 #include "duckdb/parser/query_node/update_query_node.hpp"
 #include "duckdb/parser/query_node/delete_query_node.hpp"
+#include "duckdb/parser/expression/cast_expression.hpp"
 #include "duckdb/parser/expression/columnref_expression.hpp"
 #include "duckdb/parser/expression/conjunction_expression.hpp"
 #include "duckdb/parser/expression/function_expression.hpp"
@@ -1653,6 +1654,57 @@ static bool PivotEntryIsTuple(const PivotColumnEntry &entry) {
 	return function.FunctionName() == "row";
 }
 
+static void AddPivotExpressions(PivotColumn &column, unique_ptr<ParsedExpression> pivot_header) {
+	if (pivot_header->GetExpressionClass() != ExpressionClass::FUNCTION) {
+		column.pivot_expressions.push_back(std::move(pivot_header));
+		return;
+	}
+	auto &func_expr = pivot_header->Cast<FunctionExpression>();
+	if (func_expr.FunctionName() != "row") {
+		column.pivot_expressions.push_back(std::move(pivot_header));
+		return;
+	}
+	// Unpack row() only when IN list entries are tuples (multi-value).
+	// For scalar IN entries like IN ('xx'), keep row() as a single compound expression
+	// so pivot_expressions.size() matches entry.values.size() (both 1).
+	bool has_tuple_entries = false;
+	for (auto &entry : column.entries) {
+		if (PivotEntryIsTuple(entry)) {
+			has_tuple_entries = true;
+			break;
+		}
+	}
+	if (has_tuple_entries) {
+		for (auto &child : func_expr.GetArgumentsMutable()) {
+			column.pivot_expressions.emplace_back(std::move(child.GetExpressionMutable()));
+		}
+	} else {
+		column.pivot_expressions.push_back(std::move(pivot_header));
+	}
+}
+
+// Spark reads a parenthesised list of pivot values as a struct literal, so a single pivot column takes the
+// whole tuple as one value. It goes back to an expression rather than a struct Value because the pivot filter
+// compares stringified pivot values: only an expression is folded through the client context, where the Spark
+// struct rendering lives - Value::DefaultCastAs never sees it.
+static void CollapseTupleEntriesIntoStructs(PivotColumn &column) {
+	if (column.pivot_expressions.size() != 1) {
+		return;
+	}
+	for (auto &entry : column.entries) {
+		if (entry.values.size() <= 1) {
+			continue;
+		}
+		vector<unique_ptr<ParsedExpression>> fields;
+		for (auto &value : entry.values) {
+			fields.push_back(make_uniq<ConstantExpression>(std::move(value)));
+		}
+		entry.values.clear();
+		entry.expr =
+		    make_uniq<CastExpression>(LogicalType::VARCHAR, make_uniq<FunctionExpression>("row", std::move(fields)));
+	}
+}
+
 unique_ptr<TableRef> PEGTransformerFactory::TransformTablePivotClauseBody(
     PEGTransformer &transformer, vector<unique_ptr<ParsedExpression>> target_list, vector<PivotColumn> pivot_value_list,
     const optional<vector<string>> &pivot_group_by_list) {
@@ -1693,33 +1745,8 @@ PivotColumn PEGTransformerFactory::TransformPivotValueList(PEGTransformer &trans
                                                            unique_ptr<ParsedExpression> pivot_header,
                                                            PivotColumn pivot_value_target) {
 	auto result = std::move(pivot_value_target);
-	auto pivot_expression = std::move(pivot_header);
-	if (pivot_expression->GetExpressionClass() != ExpressionClass::FUNCTION) {
-		result.pivot_expressions.push_back(std::move(pivot_expression));
-		return result;
-	}
-	auto &func_expr = pivot_expression->Cast<FunctionExpression>();
-	if (func_expr.FunctionName() != "row") {
-		result.pivot_expressions.push_back(std::move(pivot_expression));
-		return result;
-	}
-	// Unpack row() only when IN list entries are tuples (multi-value).
-	// For scalar IN entries like IN ('xx'), keep row() as a single compound expression
-	// so pivot_expressions.size() matches entry.values.size() (both 1).
-	bool has_tuple_entries = false;
-	for (auto &entry : result.entries) {
-		if (PivotEntryIsTuple(entry)) {
-			has_tuple_entries = true;
-			break;
-		}
-	}
-	if (has_tuple_entries) {
-		for (auto &child : func_expr.GetArgumentsMutable()) {
-			result.pivot_expressions.emplace_back(std::move(child.GetExpressionMutable()));
-		}
-	} else {
-		result.pivot_expressions.push_back(std::move(pivot_expression));
-	}
+	AddPivotExpressions(result, std::move(pivot_header));
+	CollapseTupleEntriesIntoStructs(result);
 	return result;
 }
 
