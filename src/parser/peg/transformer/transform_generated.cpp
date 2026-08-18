@@ -8754,6 +8754,14 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeJoinClauseI
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeOrderByClauseInternal(PEGTransformer &transformer,
+                                                                                           ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto order_by_clause = transformer.Transform<vector<OrderByNode>>(list_pr.GetChild(1));
+	auto result = TransformPipeOrderByClause(transformer, std::move(order_by_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectSetOpChainInternal(PEGTransformer &transformer,
                                                                                           ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -12037,6 +12045,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"PipeSetAssignment", &PEGTransformerFactory::TransformPipeSetAssignmentInternal},
 	    {"PipeDropClause", &PEGTransformerFactory::TransformPipeDropClauseInternal},
 	    {"PipeJoinClause", &PEGTransformerFactory::TransformPipeJoinClauseInternal},
+	    {"PipeOrderByClause", &PEGTransformerFactory::TransformPipeOrderByClauseInternal},
 	    {"SelectSetOpChain", &PEGTransformerFactory::TransformSelectSetOpChainInternal},
 	    {"SelectSetOpChainTail", &PEGTransformerFactory::TransformSelectSetOpChainTailInternal},
 	    {"IntersectChain", &PEGTransformerFactory::TransformIntersectChainInternal},

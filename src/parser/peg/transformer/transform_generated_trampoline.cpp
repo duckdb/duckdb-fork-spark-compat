@@ -2341,6 +2341,9 @@ static const TransformFrameOps PIPE_DROP_CLAUSE_OPS = {"PipeDropClause",
 static const TransformFrameOps PIPE_JOIN_CLAUSE_OPS = {"PipeJoinClause",
                                                        &PEGTransformerFactory::InitializePipeJoinClauseTrampoline,
                                                        &PEGTransformerFactory::FinalizePipeJoinClauseTrampoline};
+static const TransformFrameOps PIPE_ORDER_BY_CLAUSE_OPS = {
+    "PipeOrderByClause", &PEGTransformerFactory::InitializePipeOrderByClauseTrampoline,
+    &PEGTransformerFactory::FinalizePipeOrderByClauseTrampoline};
 static const TransformFrameOps SELECT_SET_OP_CHAIN_OPS = {"SelectSetOpChain",
                                                           &PEGTransformerFactory::InitializeSelectSetOpChainTrampoline,
                                                           &PEGTransformerFactory::FinalizeSelectSetOpChainTrampoline};
@@ -3794,6 +3797,7 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"PipeSetAssignment", &PIPE_SET_ASSIGNMENT_OPS},
 	    {"PipeDropClause", &PIPE_DROP_CLAUSE_OPS},
 	    {"PipeJoinClause", &PIPE_JOIN_CLAUSE_OPS},
+	    {"PipeOrderByClause", &PIPE_ORDER_BY_CLAUSE_OPS},
 	    {"SelectSetOpChain", &SELECT_SET_OP_CHAIN_OPS},
 	    {"SelectSetOpChainTail", &SELECT_SET_OP_CHAIN_TAIL_OPS},
 	    {"IntersectChain", &INTERSECT_CHAIN_OPS},
@@ -21057,6 +21061,21 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizePipeJoinClauseTr
                                                                                          TransformStackFrame &frame) {
 	auto join_clause = frame.TakeResult<unique_ptr<TableRef>>(0);
 	auto result = TransformPipeJoinClause(transformer, std::move(join_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializePipeOrderByClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                  TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(1), ORDER_BY_CLAUSE_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizePipeOrderByClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                           TransformStackFrame &frame) {
+	auto order_by_clause = frame.TakeResult<vector<OrderByNode>>(0);
+	auto result = TransformPipeOrderByClause(transformer, std::move(order_by_clause));
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 

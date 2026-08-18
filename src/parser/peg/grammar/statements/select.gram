@@ -2,7 +2,7 @@ SelectStatement <- SelectStatementInternal
 SelectStatementInternal <- WithClause? PipeOperatorChain ResultModifiers?
 # Spark's pipe operator binds looser than the set operators, tighter than the trailing ORDER BY / LIMIT
 PipeOperatorChain <- SelectSetOpChain PipeOperatorClause*
-PipeOperatorClause <- PipeSelectClause / PipeWhereClause / PipeExtendClause / PipeSetClause / PipeDropClause / PipeJoinClause
+PipeOperatorClause <- PipeSelectClause / PipeWhereClause / PipeExtendClause / PipeSetClause / PipeDropClause / PipeJoinClause / PipeOrderByClause
 PipeSelectClause <- '|>' SelectClause
 PipeWhereClause <- '|>' WhereClause
 PipeExtendClause <- '|>' 'EXTEND' TargetList
@@ -10,6 +10,7 @@ PipeSetClause <- '|>' 'SET' List(PipeSetAssignment)
 PipeSetAssignment <- ColumnName '=' Expression
 PipeDropClause <- '|>' 'DROP' List(ColumnName)
 PipeJoinClause <- '|>' JoinClause
+PipeOrderByClause <- '|>' OrderByClause
 SelectSetOpChain <- IntersectChain SelectSetOpChainTail*
 SelectSetOpChainTail <- SetopClause IntersectChain
 IntersectChain <- SelectAtom IntersectChainTail*

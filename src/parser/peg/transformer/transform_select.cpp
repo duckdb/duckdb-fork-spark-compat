@@ -807,6 +807,15 @@ unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeJoinClause(PEGTransfo
 	return result;
 }
 
+unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeOrderByClause(PEGTransformer &transformer,
+                                                                         vector<OrderByNode> order_by_clause) {
+	auto result = MakeInputProjection();
+	auto order_modifier = make_uniq<OrderModifier>();
+	order_modifier->orders = std::move(order_by_clause);
+	result->modifiers.push_back(std::move(order_modifier));
+	return result;
+}
+
 static optional_ptr<JoinRef> PipeJoin(SelectNode &pipe_node) {
 	if (!pipe_node.from_table || pipe_node.from_table->type != TableReferenceType::JOIN) {
 		return nullptr;
