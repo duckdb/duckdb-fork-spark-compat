@@ -28,6 +28,7 @@
 #include "duckdb/parser/expression/function_expression.hpp"
 #include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/expression/lambda_expression.hpp"
+#include "duckdb/parser/parsed_expression_iterator.hpp"
 #include "duckdb/common/unordered_map.hpp"
 #include "duckdb/main/query_result.hpp"
 
@@ -831,18 +832,287 @@ static optional_ptr<JoinRef> PipeJoin(SelectNode &pipe_node) {
 	return pipe_node.from_table->Cast<JoinRef>();
 }
 
+using PipeAliases = identifier_map_t<unique_ptr<ParsedExpression>>;
+
+//! The name a select list entry exposes to later pipe clauses; empty when the binder names the entry itself
+static Identifier PipeOutputName(const ParsedExpression &expr) {
+	if (expr.HasAlias()) {
+		return expr.GetAlias();
+	}
+	if (expr.GetExpressionClass() == ExpressionClass::COLUMN_REF) {
+		return expr.Cast<ColumnRefExpression>().GetColumnName();
+	}
+	return Identifier();
+}
+
+//! A star standing for every column of its clause's input, EXCLUDE/REPLACE/RENAME included
+static bool IsInputStar(const ParsedExpression &expr) {
+	if (!StarExpression::IsStar(expr)) {
+		return false;
+	}
+	auto &star = expr.Cast<StarExpression>();
+	return star.RelationName().empty() && !star.Expression();
+}
+
+static optional_ptr<StarExpression> PipeInputStar(SelectNode &node) {
+	if (node.select_list.empty() || !IsInputStar(*node.select_list[0])) {
+		return nullptr;
+	}
+	return node.select_list[0]->Cast<StarExpression>();
+}
+
+static optional_idx FindPipeEntry(const SelectNode &node, const Identifier &name) {
+	for (idx_t i = 0; i < node.select_list.size(); i++) {
+		auto entry_name = PipeOutputName(*node.select_list[i]);
+		if (!entry_name.empty() && entry_name == name) {
+			return i;
+		}
+	}
+	return optional_idx();
+}
+
+//! Only a star can hold a qualifier, so a qualified name never names an entry of its own
+static optional_idx FindPipeEntry(const SelectNode &node, const QualifiedColumnName &name) {
+	if (name.IsQualified()) {
+		return optional_idx();
+	}
+	return FindPipeEntry(node, name.column);
+}
+
+static void RecordPipeAlias(PipeAliases &aliases, const Identifier &name, const ParsedExpression &expr) {
+	if (name.empty()) {
+		return;
+	}
+	auto definition = expr.Copy();
+	definition->ClearAlias();
+	aliases[name] = std::move(definition);
+}
+
+//! Columns a node names itself shadow the ones its FROM clause provides, which resolve on their own
+static void CollectPipeAliases(SelectNode &node, PipeAliases &aliases) {
+	aliases.clear();
+	auto star = PipeInputStar(node);
+	if (star) {
+		for (auto &replaced : star->ReplaceList()) {
+			RecordPipeAlias(aliases, replaced.first, *replaced.second);
+		}
+	}
+	for (auto &entry : node.select_list) {
+		RecordPipeAlias(aliases, PipeOutputName(*entry), *entry);
+	}
+}
+
+static void SubstitutePipeAliases(unique_ptr<ParsedExpression> &expr, const PipeAliases &aliases) {
+	if (aliases.empty()) {
+		return;
+	}
+	if (expr->GetExpressionClass() == ExpressionClass::COLUMN_REF) {
+		auto &column_ref = expr->Cast<ColumnRefExpression>();
+		if (!column_ref.IsQualified()) {
+			auto entry = aliases.find(column_ref.GetColumnName());
+			if (entry != aliases.end()) {
+				auto alias = expr->GetAlias();
+				expr = entry->second->Copy();
+				expr->SetAlias(std::move(alias));
+				return;
+			}
+		}
+	}
+	ParsedExpressionIterator::EnumerateChildren(
+	    *expr, [&](unique_ptr<ParsedExpression> &child) { SubstitutePipeAliases(child, aliases); });
+}
+
+//! An entry that took its name from the reference it substitutes keeps that name, so `|> select z` returns `z`
+static void SubstitutePipeAliasesInEntry(unique_ptr<ParsedExpression> &entry, const PipeAliases &aliases) {
+	auto name = PipeOutputName(*entry);
+	SubstitutePipeAliases(entry, aliases);
+	if (!name.empty() && PipeOutputName(*entry) != name) {
+		entry->SetAlias(std::move(name));
+	}
+}
+
+static bool HasModifier(const SelectNode &node, ResultModifierType type) {
+	for (auto &modifier : node.modifiers) {
+		if (modifier->type == type) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool HasRowLimit(const SelectNode &node) {
+	return HasModifier(node, ResultModifierType::LIMIT_MODIFIER) ||
+	       HasModifier(node, ResultModifierType::LEGACY_LIMIT_PERCENT_MODIFIER);
+}
+
+//! Folding replays a clause against the accumulated node's own FROM clause, reordering it with respect to
+//! everything that node already applies - only orderings that leave the result unchanged may fold
+static bool PipeModifiersAllowFold(const SelectNode &target, const SelectNode &clause) {
+	auto target_limit = HasRowLimit(target);
+	auto target_order = HasModifier(target, ResultModifierType::ORDER_MODIFIER);
+	if (clause.where_clause && target_limit) {
+		return false;
+	}
+	if (HasModifier(clause, ResultModifierType::ORDER_MODIFIER) && (target_order || target_limit)) {
+		return false;
+	}
+	if (HasRowLimit(clause) && target_limit) {
+		return false;
+	}
+	if (HasModifier(clause, ResultModifierType::DISTINCT_MODIFIER) && (target_order || target_limit)) {
+		return false;
+	}
+	auto keeps_columns = clause.select_list.size() == 1 && IsPlainUnqualifiedStar(*clause.select_list[0]);
+	return keeps_columns || !HasModifier(target, ResultModifierType::DISTINCT_MODIFIER);
+}
+
+static bool PipeNameIsFoldable(SelectNode &target, const QualifiedColumnName &name) {
+	return FindPipeEntry(target, name).IsValid() || PipeInputStar(target) != nullptr;
+}
+
+static bool PipeSelectListFoldable(SelectNode &target, SelectNode &clause) {
+	auto clause_star = PipeInputStar(clause);
+	auto target_carries_input = target.select_list.size() == 1 && IsPlainStar(*target.select_list[0]);
+	for (idx_t i = clause_star ? 1 : 0; i < clause.select_list.size(); i++) {
+		// a star that is not the clause's leading one expands over the input relation, which the accumulated
+		// list only still stands for while it is an untouched star
+		if (StarExpression::IsStar(*clause.select_list[i]) && !target_carries_input) {
+			return false;
+		}
+	}
+	if (!clause_star) {
+		return true;
+	}
+	auto lists = (clause_star->ExcludeList().empty() ? 0 : 1) + (clause_star->ReplaceList().empty() ? 0 : 1) +
+	             (clause_star->RenameList().empty() ? 0 : 1);
+	// with no star to fall back on every name has to stay an entry, which two lists at once cannot promise:
+	// whichever runs first can drop or rename the entry the other one still expects to find
+	if (lists > 1 && !PipeInputStar(target)) {
+		return false;
+	}
+	for (auto &excluded : clause_star->ExcludeList()) {
+		if (!PipeNameIsFoldable(target, excluded)) {
+			return false;
+		}
+	}
+	for (auto &replaced : clause_star->ReplaceList()) {
+		if (!PipeNameIsFoldable(target, QualifiedColumnName(replaced.first))) {
+			return false;
+		}
+	}
+	for (auto &renamed : clause_star->RenameList()) {
+		if (!PipeNameIsFoldable(target, renamed.first)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static void DropPipeColumn(SelectNode &target, PipeAliases &aliases, const QualifiedColumnName &name) {
+	aliases.erase(name.column);
+	auto entry = FindPipeEntry(target, name);
+	if (entry.IsValid()) {
+		target.select_list.erase(target.select_list.begin() + NumericCast<int64_t>(entry.GetIndex()));
+		return;
+	}
+	auto target_star = PipeInputStar(target);
+	target_star->ReplaceListMutable().erase(name.column);
+	target_star->RenameListMutable().erase(name);
+	target_star->ExcludeListMutable().insert(name);
+}
+
+static void ReplacePipeColumn(SelectNode &target, PipeAliases &aliases, const Identifier &name,
+                              unique_ptr<ParsedExpression> definition) {
+	RecordPipeAlias(aliases, name, *definition);
+	auto entry = FindPipeEntry(target, name);
+	if (entry.IsValid()) {
+		definition->SetAlias(name);
+		target.select_list[entry.GetIndex()] = std::move(definition);
+		return;
+	}
+	PipeInputStar(target)->ReplaceListMutable()[name] = std::move(definition);
+}
+
+static void RenamePipeColumn(SelectNode &target, PipeAliases &aliases, const QualifiedColumnName &name,
+                             const Identifier &renamed) {
+	auto entry = FindPipeEntry(target, name);
+	if (entry.IsValid()) {
+		target.select_list[entry.GetIndex()]->SetAlias(renamed);
+	} else {
+		PipeInputStar(target)->RenameListMutable()[name] = renamed;
+	}
+	auto definition = aliases.find(name.column);
+	if (definition != aliases.end()) {
+		aliases[renamed] = std::move(definition->second);
+		aliases.erase(name.column);
+	}
+}
+
+//! The clause's own star stands for the accumulated list, so it is applied to that list rather than emitted
+static void FoldPipeSelectList(SelectNode &target, SelectNode &clause, PipeAliases &aliases) {
+	auto clause_star = PipeInputStar(clause);
+	if (!clause_star) {
+		for (auto &entry : clause.select_list) {
+			SubstitutePipeAliasesInEntry(entry, aliases);
+		}
+		target.select_list = std::move(clause.select_list);
+		CollectPipeAliases(target, aliases);
+		return;
+	}
+	for (auto &replaced : clause_star->ReplaceListMutable()) {
+		SubstitutePipeAliases(replaced.second, aliases);
+		ReplacePipeColumn(target, aliases, replaced.first, std::move(replaced.second));
+	}
+	for (auto &renamed : clause_star->RenameList()) {
+		RenamePipeColumn(target, aliases, renamed.first, renamed.second);
+	}
+	// EXCLUDE last: a column the clause both replaces and excludes is excluded
+	for (auto &excluded : clause_star->ExcludeList()) {
+		DropPipeColumn(target, aliases, excluded);
+	}
+	for (idx_t i = 1; i < clause.select_list.size(); i++) {
+		auto &entry = clause.select_list[i];
+		SubstitutePipeAliasesInEntry(entry, aliases);
+		RecordPipeAlias(aliases, PipeOutputName(*entry), *entry);
+		target.select_list.push_back(std::move(entry));
+	}
+}
+
+static void FoldPipeWhereAndModifiers(SelectNode &target, SelectNode &clause, const PipeAliases &aliases) {
+	if (clause.where_clause) {
+		SubstitutePipeAliases(clause.where_clause, aliases);
+		if (target.where_clause) {
+			target.where_clause = make_uniq<ConjunctionExpression>(
+			    ExpressionType::CONJUNCTION_AND, std::move(target.where_clause), std::move(clause.where_clause));
+		} else {
+			target.where_clause = std::move(clause.where_clause);
+		}
+	}
+	ParsedExpressionIterator::EnumerateQueryNodeModifiers(
+	    clause, [&](unique_ptr<ParsedExpression> &child) { SubstitutePipeAliases(child, aliases); });
+	for (auto &modifier : clause.modifiers) {
+		target.modifiers.push_back(std::move(modifier));
+	}
+}
+
+static bool TryFoldPipeClause(SelectNode &target, SelectNode &clause, PipeAliases &aliases) {
+	if (!PipeModifiersAllowFold(target, clause) || !PipeSelectListFoldable(target, clause)) {
+		return false;
+	}
+	FoldPipeWhereAndModifiers(target, clause, aliases);
+	FoldPipeSelectList(target, clause, aliases);
+	return true;
+}
+
 // a SET clause lowers to one projection per assignment, stacked so that each assignment sees the previous
-// one's result; the incoming relation belongs under the bottom of that stack, and a JOIN clause takes it
-// as its left operand
-static unique_ptr<TableRef> &PipeInputSlot(SelectNode &pipe_node) {
-	if (!pipe_node.from_table) {
-		return pipe_node.from_table;
+// one's result; the chain replays that stack innermost first
+static void FlattenPipeClause(unique_ptr<SelectNode> pipe_node, vector<unique_ptr<SelectNode>> &result) {
+	if (pipe_node->from_table && pipe_node->from_table->type == TableReferenceType::SUBQUERY) {
+		auto input = std::move(pipe_node->from_table->Cast<SubqueryRef>().subquery->node);
+		pipe_node->from_table = nullptr;
+		FlattenPipeClause(unique_ptr_cast<QueryNode, SelectNode>(std::move(input)), result);
 	}
-	auto pipe_join = PipeJoin(pipe_node);
-	if (pipe_join) {
-		return pipe_join->left;
-	}
-	return PipeInputSlot(pipe_node.from_table->Cast<SubqueryRef>().subquery->node->Cast<SelectNode>());
+	result.push_back(std::move(pipe_node));
 }
 
 // splicing an input's relation into a JOIN drops the node that held it, so everything that node applies
@@ -863,34 +1133,30 @@ PEGTransformerFactory::TransformPipeOperatorChain(PEGTransformer &transformer,
 	if (!pipe_operator_clause) {
 		return select;
 	}
+	PipeAliases aliases;
+	// duckdb resolves `tbl.col` only while `tbl` sits in the FROM clause of the node being bound, so clauses fold
+	// into one node instead of stacking subqueries, each of which would hide its input behind one unnamed binding
+	auto foldable = IsBareRelationSelect(*select->node);
 	for (auto &pipe_node : *pipe_operator_clause) {
-		// a single-projection clause folds into a bare-relation input rather than wrapping it, so the
-		// input's table names stay visible - a subquery would hide them behind one unnamed binding
-		if (!pipe_node->from_table && IsBareRelationSelect(*select->node)) {
-			auto &input_node = select->node->Cast<SelectNode>();
-			input_node.select_list = std::move(pipe_node->select_list);
-			if (pipe_node->where_clause) {
-				if (input_node.where_clause) {
-					input_node.where_clause = make_uniq<ConjunctionExpression>(ExpressionType::CONJUNCTION_AND,
-					                                                           std::move(input_node.where_clause),
-					                                                           std::move(pipe_node->where_clause));
-				} else {
-					input_node.where_clause = std::move(pipe_node->where_clause);
-				}
+		vector<unique_ptr<SelectNode>> clauses;
+		FlattenPipeClause(std::move(pipe_node), clauses);
+		for (auto &clause : clauses) {
+			auto pipe_join = PipeJoin(*clause);
+			if (!pipe_join && foldable && TryFoldPipeClause(select->node->Cast<SelectNode>(), *clause, aliases)) {
+				continue;
 			}
-			for (auto &modifier : pipe_node->modifiers) {
-				input_node.modifiers.push_back(std::move(modifier));
+			if (!pipe_join) {
+				clause->from_table = make_uniq<SubqueryRef>(std::move(select));
+			} else if (IsSpliceableRelationSelect(*select->node)) {
+				pipe_join->left = std::move(select->node->Cast<SelectNode>().from_table);
+			} else {
+				pipe_join->left = make_uniq<SubqueryRef>(std::move(select));
 			}
-			continue;
+			select = make_uniq<SelectStatement>();
+			select->node = std::move(clause);
+			CollectPipeAliases(select->node->Cast<SelectNode>(), aliases);
+			foldable = true;
 		}
-		auto pipe_join = PipeJoin(*pipe_node);
-		if (pipe_join && IsSpliceableRelationSelect(*select->node)) {
-			pipe_join->left = std::move(select->node->Cast<SelectNode>().from_table);
-		} else {
-			PipeInputSlot(*pipe_node) = make_uniq<SubqueryRef>(std::move(select));
-		}
-		select = make_uniq<SelectStatement>();
-		select->node = std::move(pipe_node);
 	}
 	return select;
 }
