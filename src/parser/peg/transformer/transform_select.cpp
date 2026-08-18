@@ -2798,10 +2798,17 @@ QualifiedName PEGTransformerFactory::TransformQualifiedTableFunction(PEGTransfor
 vector<FunctionArgument>
 PEGTransformerFactory::TransformTableFunctionArguments(PEGTransformer &transformer,
                                                        optional<vector<FunctionArgument>> function_argument) {
-	if (function_argument) {
-		return std::move(*function_argument);
+	if (!function_argument) {
+		return {};
 	}
-	return {};
+	for (auto &argument : *function_argument) {
+		auto &expression = argument.GetExpressionMutable();
+		if (expression->GetExpressionType() != ExpressionType::COMPARE_EQUAL) {
+			continue;
+		}
+		UnwrapStringComparisonPromotion(expression->Cast<ComparisonExpression>().LeftMutable());
+	}
+	return std::move(*function_argument);
 }
 
 TableAlias PEGTransformerFactory::TransformTableAliasAs(PEGTransformer &transformer,

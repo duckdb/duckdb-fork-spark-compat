@@ -969,6 +969,41 @@ PEGTransformerFactory::TransformIsDistinctFromExpression(PEGTransformer &transfo
 	return expr;
 }
 
+static constexpr const char *STRING_COMPARISON_PROMOTION = "__spark_promote_string_comparison_operand";
+
+static bool IsStringLiteral(const ParsedExpression &expr) {
+	if (expr.GetExpressionClass() != ExpressionClass::CONSTANT) {
+		return false;
+	}
+	return expr.Cast<ConstantExpression>().GetValue().type().id() == LogicalTypeId::VARCHAR;
+}
+
+// Spark widens the non-string side of a comparison against a string, to a type only known at bind time.
+static void PromoteStringComparisonOperands(unique_ptr<ParsedExpression> &left, unique_ptr<ParsedExpression> &right) {
+	auto left_is_string = IsStringLiteral(*left);
+	if (left_is_string == IsStringLiteral(*right)) {
+		return;
+	}
+	auto &operand = left_is_string ? right : left;
+	if (operand->GetExpressionClass() == ExpressionClass::SUBQUERY) {
+		return;
+	}
+	vector<unique_ptr<ParsedExpression>> promote_children;
+	promote_children.push_back(std::move(operand));
+	operand = make_uniq<FunctionExpression>(STRING_COMPARISON_PROMOTION, std::move(promote_children));
+}
+
+void UnwrapStringComparisonPromotion(unique_ptr<ParsedExpression> &expr) {
+	if (expr->GetExpressionClass() != ExpressionClass::FUNCTION) {
+		return;
+	}
+	auto &function = expr->Cast<FunctionExpression>();
+	if (function.FunctionName() != STRING_COMPARISON_PROMOTION) {
+		return;
+	}
+	expr = std::move(function.GetArgumentsMutable()[0].GetExpressionMutable());
+}
+
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformComparisonExpression(
     PEGTransformer &transformer, unique_ptr<ParsedExpression> between_in_like_expression,
     optional<vector<ComparisonExpressionTail>> comparison_expression_tail) {
@@ -984,6 +1019,7 @@ unique_ptr<ParsedExpression> PEGTransformerFactory::TransformComparisonExpressio
 			inner_list_children.push_back(std::move(right_expr));
 			right_expr = make_uniq<OperatorExpression>(ExpressionType::OPERATOR_NOT, std::move(inner_list_children));
 		}
+		PromoteStringComparisonOperands(expr, right_expr);
 		expr = make_uniq<ComparisonExpression>(comparison_expr.comparison_type, std::move(expr), std::move(right_expr));
 	}
 	return expr;

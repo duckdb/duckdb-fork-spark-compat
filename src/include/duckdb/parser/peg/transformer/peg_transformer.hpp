@@ -113,6 +113,9 @@ struct TransformFrameOps {
 template <typename T>
 unique_ptr<TypedTransformResult<T>> TryBridgeTransformResultValue(TransformResultValue &base_result);
 
+// Undoes PromoteStringComparisonOperands, for call sites that read a comparison as a named argument.
+void UnwrapStringComparisonPromotion(unique_ptr<ParsedExpression> &expr);
+
 struct TransformFrameResultTarget {
 	TransformFrameResultTarget(transform_frame_index_t frame_index, idx_t slot);
 
