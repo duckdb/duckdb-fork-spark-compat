@@ -425,7 +425,7 @@ public:
 	static void VerifyColumnRefs(const ParsedExpression &expr);
 	static void RemoveOrderQualificationRecursive(unique_ptr<ParsedExpression> &root_expr);
 	static void GetValueFromExpression(unique_ptr<ParsedExpression> &expr, vector<Value> &result);
-	static bool TransformPivotInList(unique_ptr<ParsedExpression> &expr, PivotColumnEntry &entry);
+	static bool TransformPivotInList(unique_ptr<ParsedExpression> &expr, PivotColumnEntry &entry, idx_t depth = 0);
 	static void AddPivotEntry(PEGTransformer &transformer, string enum_name, unique_ptr<SelectNode> base,
 	                          unique_ptr<ParsedExpression> column, unique_ptr<QueryNode> subquery, bool has_parameters);
 	static Value GetConstantExpressionValue(unique_ptr<ParsedExpression> &expr);
