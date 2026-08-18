@@ -166,6 +166,7 @@ SelectNode:
     - PipeSelectClause
     - PipeWhereClause
     - PipeExtendClause
+    - PipeSetClause
 
 SetOperationNode:
   type: "unique_ptr<SetOperationNode>"
@@ -1685,6 +1686,9 @@ overrides:
   # select.gram
   WithStatement:
     type: "pair<Identifier, unique_ptr<CommonTableExpressionInfo>>"
+    by_value: true
+  PipeSetAssignment:
+    type: "pair<Identifier, unique_ptr<ParsedExpression>>"
     by_value: true
   JoinType:
     type: "JoinType"

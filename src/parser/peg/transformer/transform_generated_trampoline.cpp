@@ -2329,6 +2329,12 @@ static const TransformFrameOps PIPE_WHERE_CLAUSE_OPS = {"PipeWhereClause",
 static const TransformFrameOps PIPE_EXTEND_CLAUSE_OPS = {"PipeExtendClause",
                                                          &PEGTransformerFactory::InitializePipeExtendClauseTrampoline,
                                                          &PEGTransformerFactory::FinalizePipeExtendClauseTrampoline};
+static const TransformFrameOps PIPE_SET_CLAUSE_OPS = {"PipeSetClause",
+                                                      &PEGTransformerFactory::InitializePipeSetClauseTrampoline,
+                                                      &PEGTransformerFactory::FinalizePipeSetClauseTrampoline};
+static const TransformFrameOps PIPE_SET_ASSIGNMENT_OPS = {"PipeSetAssignment",
+                                                          &PEGTransformerFactory::InitializePipeSetAssignmentTrampoline,
+                                                          &PEGTransformerFactory::FinalizePipeSetAssignmentTrampoline};
 static const TransformFrameOps SELECT_SET_OP_CHAIN_OPS = {"SelectSetOpChain",
                                                           &PEGTransformerFactory::InitializeSelectSetOpChainTrampoline,
                                                           &PEGTransformerFactory::FinalizeSelectSetOpChainTrampoline};
@@ -3778,6 +3784,8 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"PipeSelectClause", &PIPE_SELECT_CLAUSE_OPS},
 	    {"PipeWhereClause", &PIPE_WHERE_CLAUSE_OPS},
 	    {"PipeExtendClause", &PIPE_EXTEND_CLAUSE_OPS},
+	    {"PipeSetClause", &PIPE_SET_CLAUSE_OPS},
+	    {"PipeSetAssignment", &PIPE_SET_ASSIGNMENT_OPS},
 	    {"SelectSetOpChain", &SELECT_SET_OP_CHAIN_OPS},
 	    {"SelectSetOpChainTail", &SELECT_SET_OP_CHAIN_TAIL_OPS},
 	    {"IntersectChain", &INTERSECT_CHAIN_OPS},
@@ -20965,6 +20973,50 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizePipeExtendClause
 	auto target_list = frame.TakeResult<vector<unique_ptr<ParsedExpression>>>(0);
 	auto result = TransformPipeExtendClause(transformer, std::move(target_list));
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializePipeSetClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                              TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto list_items = ExtractParseResultsFromList(list_pr.GetChild(2));
+	auto dynamic_child_count = list_items.size();
+	frame.ReserveChildSlots(1 + dynamic_child_count - 1);
+	for (idx_t i = list_items.size(); i > 0; i--) {
+		auto child_idx = i - 1;
+		stack.PushFrame(list_items[child_idx].get(), PIPE_SET_ASSIGNMENT_OPS,
+		                TransformFrameResultTarget(frame.frame_index, 0 + child_idx));
+	}
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizePipeSetClauseTrampoline(PEGTransformer &transformer,
+                                                                                        TransformStack &stack,
+                                                                                        TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto dynamic_list_items = ExtractParseResultsFromList(list_pr.GetChild(2));
+	auto dynamic_child_count = dynamic_list_items.size();
+	vector<pair<Identifier, unique_ptr<ParsedExpression>>> pipe_set_assignment;
+	for (idx_t i = 0; i < 0 + dynamic_child_count; i++) {
+		pipe_set_assignment.push_back(frame.TakeResult<pair<Identifier, unique_ptr<ParsedExpression>>>(i));
+	}
+	auto result = TransformPipeSetClause(transformer, std::move(pipe_set_assignment));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializePipeSetAssignmentTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                  TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(2), EXPRESSION_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizePipeSetAssignmentTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                           TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto column_name = list_pr.GetChild(0).Cast<IdentifierParseResult>().identifier;
+	auto expression = frame.TakeResult<unique_ptr<ParsedExpression>>(0);
+	auto result = TransformPipeSetAssignment(transformer, column_name, std::move(expression));
+	return make_uniq<TypedTransformResult<pair<Identifier, unique_ptr<ParsedExpression>>>>(std::move(result));
 }
 
 void PEGTransformerFactory::InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,

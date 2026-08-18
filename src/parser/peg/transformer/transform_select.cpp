@@ -767,6 +767,38 @@ PEGTransformerFactory::TransformPipeExtendClause(PEGTransformer &transformer,
 	return result;
 }
 
+pair<Identifier, unique_ptr<ParsedExpression>>
+PEGTransformerFactory::TransformPipeSetAssignment(PEGTransformer &transformer, const Identifier &column_name,
+                                                  unique_ptr<ParsedExpression> expression) {
+	return make_pair(column_name, std::move(expression));
+}
+
+unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeSetClause(
+    PEGTransformer &transformer, vector<pair<Identifier, unique_ptr<ParsedExpression>>> pipe_set_assignment) {
+	unique_ptr<SelectNode> result;
+	for (auto &assignment : pipe_set_assignment) {
+		auto projection = MakeInputProjection();
+		projection->select_list[0]->Cast<StarExpression>().ReplaceListMutable()[assignment.first] =
+		    std::move(assignment.second);
+		if (result) {
+			auto input = make_uniq<SelectStatement>();
+			input->node = std::move(result);
+			projection->from_table = make_uniq<SubqueryRef>(std::move(input));
+		}
+		result = std::move(projection);
+	}
+	return result;
+}
+
+// a SET clause lowers to one projection per assignment, stacked so that each assignment sees the previous
+// one's result; the incoming relation belongs under the bottom of that stack
+static SelectNode &PipeInputTarget(SelectNode &pipe_node) {
+	if (!pipe_node.from_table) {
+		return pipe_node;
+	}
+	return PipeInputTarget(pipe_node.from_table->Cast<SubqueryRef>().subquery->node->Cast<SelectNode>());
+}
+
 unique_ptr<SelectStatement>
 PEGTransformerFactory::TransformPipeOperatorChain(PEGTransformer &transformer,
                                                   unique_ptr<SelectStatement> select_set_op_chain,
@@ -776,9 +808,9 @@ PEGTransformerFactory::TransformPipeOperatorChain(PEGTransformer &transformer,
 		return select;
 	}
 	for (auto &pipe_node : *pipe_operator_clause) {
-		// a pipe clause applies on top of its input, so while the input is still the bare relation its
-		// table names must stay visible - a subquery would hide them behind a single unnamed binding
-		if (IsBareRelationSelect(*select->node)) {
+		// a single-projection clause folds into a bare-relation input rather than wrapping it, so the
+		// input's table names stay visible - a subquery would hide them behind one unnamed binding
+		if (!pipe_node->from_table && IsBareRelationSelect(*select->node)) {
 			auto &input_node = select->node->Cast<SelectNode>();
 			input_node.select_list = std::move(pipe_node->select_list);
 			if (pipe_node->where_clause) {
@@ -795,7 +827,7 @@ PEGTransformerFactory::TransformPipeOperatorChain(PEGTransformer &transformer,
 			}
 			continue;
 		}
-		pipe_node->from_table = make_uniq<SubqueryRef>(std::move(select));
+		PipeInputTarget(*pipe_node).from_table = make_uniq<SubqueryRef>(std::move(select));
 		select = make_uniq<SelectStatement>();
 		select->node = std::move(pipe_node);
 	}

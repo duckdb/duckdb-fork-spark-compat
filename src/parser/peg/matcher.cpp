@@ -1180,8 +1180,8 @@ private:
 	}
 
 	static bool MatchesOperatorText(const string &token_text) {
-		// Exclude the lambda arrow and JSON arrow — these have dedicated grammar roles
-		if (token_text == "->" || token_text == "->>") {
+		// Exclude the lambda arrow, JSON arrow and pipe operator — these have dedicated grammar roles
+		if (token_text == "->" || token_text == "->>" || token_text == "|>") {
 			return false;
 		}
 		// Single-character operators are handled at specific precedence levels (comparison, additive, etc.)

@@ -8710,6 +8710,29 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeExtendClaus
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeSetClauseInternal(PEGTransformer &transformer,
+                                                                                       ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	vector<pair<Identifier, unique_ptr<ParsedExpression>>> pipe_set_assignment;
+	auto pipe_set_assignment_items = ExtractParseResultsFromList(list_pr.GetChild(2));
+	for (auto &pipe_set_assignment_item : pipe_set_assignment_items) {
+		auto pipe_set_assignment_value =
+		    transformer.Transform<pair<Identifier, unique_ptr<ParsedExpression>>>(pipe_set_assignment_item.get());
+		pipe_set_assignment.push_back(std::move(pipe_set_assignment_value));
+	}
+	auto result = TransformPipeSetClause(transformer, std::move(pipe_set_assignment));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformPipeSetAssignmentInternal(PEGTransformer &transformer,
+                                                                                           ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto column_name = list_pr.GetChild(0).Cast<IdentifierParseResult>().identifier;
+	auto expression = transformer.Transform<unique_ptr<ParsedExpression>>(list_pr.GetChild(2));
+	auto result = TransformPipeSetAssignment(transformer, column_name, std::move(expression));
+	return make_uniq<TypedTransformResult<pair<Identifier, unique_ptr<ParsedExpression>>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectSetOpChainInternal(PEGTransformer &transformer,
                                                                                           ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -11989,6 +12012,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"PipeSelectClause", &PEGTransformerFactory::TransformPipeSelectClauseInternal},
 	    {"PipeWhereClause", &PEGTransformerFactory::TransformPipeWhereClauseInternal},
 	    {"PipeExtendClause", &PEGTransformerFactory::TransformPipeExtendClauseInternal},
+	    {"PipeSetClause", &PEGTransformerFactory::TransformPipeSetClauseInternal},
+	    {"PipeSetAssignment", &PEGTransformerFactory::TransformPipeSetAssignmentInternal},
 	    {"SelectSetOpChain", &PEGTransformerFactory::TransformSelectSetOpChainInternal},
 	    {"SelectSetOpChainTail", &PEGTransformerFactory::TransformSelectSetOpChainTailInternal},
 	    {"IntersectChain", &PEGTransformerFactory::TransformIntersectChainInternal},

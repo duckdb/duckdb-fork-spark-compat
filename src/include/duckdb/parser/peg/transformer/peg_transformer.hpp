@@ -3955,6 +3955,14 @@ public:
 	                                                 TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizePipeExtendClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializePipeSetClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                              TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizePipeSetClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializePipeSetAssignmentTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                  TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizePipeSetAssignmentTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                 TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -7937,6 +7945,16 @@ public:
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SelectNode> TransformPipeExtendClause(PEGTransformer &transformer,
 	                                                        vector<unique_ptr<ParsedExpression>> target_list);
+	static unique_ptr<TransformResultValue> TransformPipeSetClauseInternal(PEGTransformer &transformer,
+	                                                                       ParseResult &parse_result);
+	static unique_ptr<SelectNode>
+	TransformPipeSetClause(PEGTransformer &transformer,
+	                       vector<pair<Identifier, unique_ptr<ParsedExpression>>> pipe_set_assignment);
+	static unique_ptr<TransformResultValue> TransformPipeSetAssignmentInternal(PEGTransformer &transformer,
+	                                                                           ParseResult &parse_result);
+	static pair<Identifier, unique_ptr<ParsedExpression>>
+	TransformPipeSetAssignment(PEGTransformer &transformer, const Identifier &column_name,
+	                           unique_ptr<ParsedExpression> expression);
 	static unique_ptr<TransformResultValue> TransformSelectSetOpChainInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SelectStatement> TransformSelectSetOpChain(
