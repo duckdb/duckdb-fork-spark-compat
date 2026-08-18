@@ -3963,6 +3963,10 @@ public:
 	                                                  TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizePipeSetAssignmentTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializePipeJoinClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                               TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizePipeJoinClauseTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                 TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -7955,6 +7959,10 @@ public:
 	static pair<Identifier, unique_ptr<ParsedExpression>>
 	TransformPipeSetAssignment(PEGTransformer &transformer, const Identifier &column_name,
 	                           unique_ptr<ParsedExpression> expression);
+	static unique_ptr<TransformResultValue> TransformPipeJoinClauseInternal(PEGTransformer &transformer,
+	                                                                        ParseResult &parse_result);
+	static unique_ptr<SelectNode> TransformPipeJoinClause(PEGTransformer &transformer,
+	                                                      unique_ptr<TableRef> join_clause);
 	static unique_ptr<TransformResultValue> TransformSelectSetOpChainInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SelectStatement> TransformSelectSetOpChain(

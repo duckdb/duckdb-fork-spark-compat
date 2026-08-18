@@ -790,13 +790,42 @@ unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeSetClause(
 	return result;
 }
 
-// a SET clause lowers to one projection per assignment, stacked so that each assignment sees the previous
-// one's result; the incoming relation belongs under the bottom of that stack
-static SelectNode &PipeInputTarget(SelectNode &pipe_node) {
-	if (!pipe_node.from_table) {
-		return pipe_node;
+unique_ptr<SelectNode> PEGTransformerFactory::TransformPipeJoinClause(PEGTransformer &transformer,
+                                                                      unique_ptr<TableRef> join_clause) {
+	auto result = MakeInputProjection();
+	result->from_table = std::move(join_clause);
+	return result;
+}
+
+static optional_ptr<JoinRef> PipeJoin(SelectNode &pipe_node) {
+	if (!pipe_node.from_table || pipe_node.from_table->type != TableReferenceType::JOIN) {
+		return nullptr;
 	}
-	return PipeInputTarget(pipe_node.from_table->Cast<SubqueryRef>().subquery->node->Cast<SelectNode>());
+	return pipe_node.from_table->Cast<JoinRef>();
+}
+
+// a SET clause lowers to one projection per assignment, stacked so that each assignment sees the previous
+// one's result; the incoming relation belongs under the bottom of that stack, and a JOIN clause takes it
+// as its left operand
+static unique_ptr<TableRef> &PipeInputSlot(SelectNode &pipe_node) {
+	if (!pipe_node.from_table) {
+		return pipe_node.from_table;
+	}
+	auto pipe_join = PipeJoin(pipe_node);
+	if (pipe_join) {
+		return pipe_join->left;
+	}
+	return PipeInputSlot(pipe_node.from_table->Cast<SubqueryRef>().subquery->node->Cast<SelectNode>());
+}
+
+// splicing an input's relation into a JOIN drops the node that held it, so everything that node applies
+// must already be part of the relation itself
+static bool IsSpliceableRelationSelect(const QueryNode &node) {
+	if (!IsBareRelationSelect(node) || !node.cte_map.map.empty()) {
+		return false;
+	}
+	auto &select_node = node.Cast<SelectNode>();
+	return !select_node.where_clause && !select_node.sample;
 }
 
 unique_ptr<SelectStatement>
@@ -827,7 +856,12 @@ PEGTransformerFactory::TransformPipeOperatorChain(PEGTransformer &transformer,
 			}
 			continue;
 		}
-		PipeInputTarget(*pipe_node).from_table = make_uniq<SubqueryRef>(std::move(select));
+		auto pipe_join = PipeJoin(*pipe_node);
+		if (pipe_join && IsSpliceableRelationSelect(*select->node)) {
+			pipe_join->left = std::move(select->node->Cast<SelectNode>().from_table);
+		} else {
+			PipeInputSlot(*pipe_node) = make_uniq<SubqueryRef>(std::move(select));
+		}
 		select = make_uniq<SelectStatement>();
 		select->node = std::move(pipe_node);
 	}

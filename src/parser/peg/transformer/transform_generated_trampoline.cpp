@@ -2335,6 +2335,9 @@ static const TransformFrameOps PIPE_SET_CLAUSE_OPS = {"PipeSetClause",
 static const TransformFrameOps PIPE_SET_ASSIGNMENT_OPS = {"PipeSetAssignment",
                                                           &PEGTransformerFactory::InitializePipeSetAssignmentTrampoline,
                                                           &PEGTransformerFactory::FinalizePipeSetAssignmentTrampoline};
+static const TransformFrameOps PIPE_JOIN_CLAUSE_OPS = {"PipeJoinClause",
+                                                       &PEGTransformerFactory::InitializePipeJoinClauseTrampoline,
+                                                       &PEGTransformerFactory::FinalizePipeJoinClauseTrampoline};
 static const TransformFrameOps SELECT_SET_OP_CHAIN_OPS = {"SelectSetOpChain",
                                                           &PEGTransformerFactory::InitializeSelectSetOpChainTrampoline,
                                                           &PEGTransformerFactory::FinalizeSelectSetOpChainTrampoline};
@@ -3786,6 +3789,7 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"PipeExtendClause", &PIPE_EXTEND_CLAUSE_OPS},
 	    {"PipeSetClause", &PIPE_SET_CLAUSE_OPS},
 	    {"PipeSetAssignment", &PIPE_SET_ASSIGNMENT_OPS},
+	    {"PipeJoinClause", &PIPE_JOIN_CLAUSE_OPS},
 	    {"SelectSetOpChain", &SELECT_SET_OP_CHAIN_OPS},
 	    {"SelectSetOpChainTail", &SELECT_SET_OP_CHAIN_TAIL_OPS},
 	    {"IntersectChain", &INTERSECT_CHAIN_OPS},
@@ -21017,6 +21021,21 @@ PEGTransformerFactory::FinalizePipeSetAssignmentTrampoline(PEGTransformer &trans
 	auto expression = frame.TakeResult<unique_ptr<ParsedExpression>>(0);
 	auto result = TransformPipeSetAssignment(transformer, column_name, std::move(expression));
 	return make_uniq<TypedTransformResult<pair<Identifier, unique_ptr<ParsedExpression>>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializePipeJoinClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                               TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(1);
+	stack.PushFrame(list_pr.GetChild(1), JOIN_CLAUSE_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizePipeJoinClauseTrampoline(PEGTransformer &transformer,
+                                                                                         TransformStack &stack,
+                                                                                         TransformStackFrame &frame) {
+	auto join_clause = frame.TakeResult<unique_ptr<TableRef>>(0);
+	auto result = TransformPipeJoinClause(transformer, std::move(join_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
 void PEGTransformerFactory::InitializeSelectSetOpChainTrampoline(PEGTransformer &transformer, TransformStack &stack,
