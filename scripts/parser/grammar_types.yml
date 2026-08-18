@@ -192,6 +192,7 @@ CreateStatement:
     - CreateMacroStmt
     - CreateTypeStmt
     - CreateViewStmt
+    - CreateViewUsingStmt
     - CreateTriggerStmt
 
 DropStatement:

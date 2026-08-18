@@ -1049,6 +1049,9 @@ static const TransformFrameOps ENUM_STRING_LITERAL_LIST_OPS = {
 static const TransformFrameOps CREATE_VIEW_STMT_OPS = {"CreateViewStmt",
                                                        &PEGTransformerFactory::InitializeCreateViewStmtTrampoline,
                                                        &PEGTransformerFactory::FinalizeCreateViewStmtTrampoline};
+static const TransformFrameOps CREATE_VIEW_USING_STMT_OPS = {
+    "CreateViewUsingStmt", &PEGTransformerFactory::InitializeCreateViewUsingStmtTrampoline,
+    &PEGTransformerFactory::FinalizeCreateViewUsingStmtTrampoline};
 static const TransformFrameOps CREATE_RECURSIVE_OPS = {"CreateRecursive",
                                                        &PEGTransformerFactory::InitializeCreateRecursiveTrampoline,
                                                        &PEGTransformerFactory::FinalizeCreateRecursiveTrampoline};
@@ -3353,6 +3356,7 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"EnumSelectType", &ENUM_SELECT_TYPE_OPS},
 	    {"EnumStringLiteralList", &ENUM_STRING_LITERAL_LIST_OPS},
 	    {"CreateViewStmt", &CREATE_VIEW_STMT_OPS},
+	    {"CreateViewUsingStmt", &CREATE_VIEW_USING_STMT_OPS},
 	    {"CreateRecursive", &CREATE_RECURSIVE_OPS},
 	    {"ViewColumnList", &VIEW_COLUMN_LIST_OPS},
 	    {"ViewColumn", &VIEW_COLUMN_OPS},
@@ -11623,6 +11627,25 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeCreateViewStmtTr
 	auto result = TransformCreateViewStmt(transformer, create_recursive, if_not_exists, qualified_name,
 	                                      view_column_list, has_result, insert_column_list, std::move(with_list),
 	                                      std::move(select_statement_internal));
+	return make_uniq<TypedTransformResult<unique_ptr<CreateStatement>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeCreateViewUsingStmtTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                    TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(3);
+	stack.PushFrame(list_pr.GetChild(3), SPARK_USING_OPS, TransformFrameResultTarget(frame.frame_index, 2));
+	stack.PushFrame(list_pr.GetChild(2), COL_ID_PARENS_TYPE_LIST_OPS, TransformFrameResultTarget(frame.frame_index, 1));
+	stack.PushFrame(list_pr.GetChild(1), QUALIFIED_NAME_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::FinalizeCreateViewUsingStmtTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                             TransformStackFrame &frame) {
+	auto qualified_name = frame.TakeResult<QualifiedName>(0);
+	auto col_id_parens_type_list = frame.TakeResult<child_list_t<LogicalType>>(1);
+	auto spark_using = frame.TakeResult<pair<string, string>>(2);
+	auto result = TransformCreateViewUsingStmt(transformer, qualified_name, col_id_parens_type_list, spark_using);
 	return make_uniq<TypedTransformResult<unique_ptr<CreateStatement>>>(std::move(result));
 }
 

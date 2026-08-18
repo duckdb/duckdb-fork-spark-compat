@@ -1,4 +1,5 @@
 CreateViewStmt <- CreateRecursive? 'VIEW' IfNotExists? QualifiedName ViewColumnList? WithSchemaMode? InsertColumnList? WithList? 'AS' SelectStatementInternal
+CreateViewUsingStmt <- 'VIEW' QualifiedName ColIdParensTypeList SparkUsing
 CreateRecursive <- 'RECURSIVE'
 ViewColumnList <- Parens(List(ViewColumn))
 ViewColumn <- ColId ('COMMENT' StringLiteral)?

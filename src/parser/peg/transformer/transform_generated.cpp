@@ -3883,6 +3883,16 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateViewStmtI
 	return make_uniq<TypedTransformResult<unique_ptr<CreateStatement>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformCreateViewUsingStmtInternal(PEGTransformer &transformer, ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto qualified_name = transformer.Transform<QualifiedName>(list_pr.GetChild(1));
+	auto col_id_parens_type_list = transformer.Transform<child_list_t<LogicalType>>(list_pr.GetChild(2));
+	auto spark_using = transformer.Transform<pair<string, string>>(list_pr.GetChild(3));
+	auto result = TransformCreateViewUsingStmt(transformer, qualified_name, col_id_parens_type_list, spark_using);
+	return make_uniq<TypedTransformResult<unique_ptr<CreateStatement>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformCreateRecursiveInternal(PEGTransformer &transformer,
                                                                                          ParseResult &parse_result) {
 	auto result = TransformCreateRecursive(transformer);
@@ -11611,6 +11621,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"EnumSelectType", &PEGTransformerFactory::TransformEnumSelectTypeInternal},
 	    {"EnumStringLiteralList", &PEGTransformerFactory::TransformEnumStringLiteralListInternal},
 	    {"CreateViewStmt", &PEGTransformerFactory::TransformCreateViewStmtInternal},
+	    {"CreateViewUsingStmt", &PEGTransformerFactory::TransformCreateViewUsingStmtInternal},
 	    {"CreateRecursive", &PEGTransformerFactory::TransformCreateRecursiveInternal},
 	    {"ViewColumnList", &PEGTransformerFactory::TransformViewColumnListInternal},
 	    {"ViewColumn", &PEGTransformerFactory::TransformViewColumnInternal},

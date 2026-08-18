@@ -1,7 +1,10 @@
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
+#include "duckdb/parser/expression/cast_expression.hpp"
+#include "duckdb/parser/expression/constant_expression.hpp"
 #include "duckdb/parser/parsed_data/create_view_info.hpp"
 #include "duckdb/parser/query_node/recursive_cte_node.hpp"
 #include "duckdb/parser/query_node/set_operation_node.hpp"
+#include "duckdb/parser/tableref/emptytableref.hpp"
 
 namespace duckdb {
 unique_ptr<QueryNode> PEGTransformerFactory::ToRecursiveCTE(unique_ptr<QueryNode> node, const Identifier &name,
@@ -129,6 +132,35 @@ PEGTransformerFactory::TransformCreateViewStmt(PEGTransformer &transformer, cons
 		info->query = std::move(select_statement_internal);
 	}
 	transformer.PivotEntryCheck("view");
+	result->info = std::move(info);
+	return result;
+}
+
+// CreateViewUsingStmt <- 'VIEW' QualifiedName ColIdParensTypeList SparkUsing
+unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreateViewUsingStmt(
+    PEGTransformer &transformer, const QualifiedName &qualified_name,
+    const child_list_t<LogicalType> &col_id_parens_type_list, const pair<string, string> &spark_using) {
+	// spark_using (USING <format> [LOCATION <path>]) is parsed for spark compatibility but ignored
+	auto select_node = make_uniq<SelectNode>();
+	for (auto &column : col_id_parens_type_list) {
+		// the declared type is still unbound here, so it has to be resolved by a cast rather than a typed NULL
+		auto null_column = make_uniq<CastExpression>(column.second, make_uniq<ConstantExpression>(Value()));
+		null_column->SetAlias(column.first);
+		select_node->select_list.push_back(std::move(null_column));
+	}
+	select_node->from_table = make_uniq<EmptyTableRef>();
+	// spark resolves a schema-only data source to a relation with no rows
+	select_node->where_clause = make_uniq<ConstantExpression>(Value::BOOLEAN(false));
+
+	auto select_statement = make_uniq<SelectStatement>();
+	select_statement->node = std::move(select_node);
+
+	auto info = make_uniq<CreateViewInfo>();
+	info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+	info->SetQualifiedName(qualified_name);
+	info->query = std::move(select_statement);
+
+	auto result = make_uniq<CreateStatement>();
 	result->info = std::move(info);
 	return result;
 }
