@@ -8,6 +8,7 @@
 #include "duckdb/parser/peg/ast/table_alias.hpp"
 #include "duckdb/parser/tableref/showref.hpp"
 #include "duckdb/parser/peg/transformer/peg_transformer.hpp"
+#include "duckdb/parser/tableref/basetableref.hpp"
 #include "duckdb/parser/tableref/emptytableref.hpp"
 #include "duckdb/parser/query_node/select_node.hpp"
 #include "duckdb/parser/tableref/joinref.hpp"
@@ -28,6 +29,7 @@
 #include "duckdb/parser/expression/conjunction_expression.hpp"
 #include "duckdb/parser/expression/function_expression.hpp"
 #include "duckdb/parser/expression/constant_expression.hpp"
+#include "duckdb/parser/expression/star_expression.hpp"
 #include "duckdb/parser/expression/lambda_expression.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
 #include "duckdb/common/unordered_map.hpp"
@@ -606,6 +608,109 @@ void AssignGroupByNode(SelectNode &node, GroupByNode groups) {
 	}
 	node.groups = std::move(groups);
 	MergeDuplicateGroupByKeys(node);
+}
+
+//! The relations a qualified column reference can name in this FROM clause, as the binder sees them.
+void CollectRelationNames(const TableRef &ref, identifier_set_t &names) {
+	if (!ref.alias.empty()) {
+		names.insert(ref.alias);
+		return;
+	}
+	switch (ref.type) {
+	case TableReferenceType::BASE_TABLE:
+		names.insert(ref.Cast<BaseTableRef>().Table());
+		break;
+	case TableReferenceType::JOIN: {
+		auto &join = ref.Cast<JoinRef>();
+		CollectRelationNames(*join.left, names);
+		CollectRelationNames(*join.right, names);
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+void CollectQualifiedExcludeStars(ParsedExpression &expr, vector<reference<StarExpression>> &stars) {
+	if (expr.GetExpressionClass() != ExpressionClass::STAR) {
+		ParsedExpressionIterator::EnumerateChildren(
+		    expr, [&](ParsedExpression &child) { CollectQualifiedExcludeStars(child, stars); });
+		return;
+	}
+	auto &star = expr.Cast<StarExpression>();
+	for (auto &excluded : star.ExcludeList()) {
+		if (excluded.IsQualified()) {
+			stars.emplace_back(star);
+			return;
+		}
+	}
+}
+
+//! The name parts an EXCLUDE entry was written with, in order
+vector<Identifier> ExcludedNameParts(const QualifiedColumnName &excluded) {
+	vector<Identifier> parts;
+	for (auto &qualifier : {excluded.catalog, excluded.schema, excluded.table}) {
+		if (!qualifier.empty()) {
+			parts.push_back(qualifier);
+		}
+	}
+	parts.push_back(excluded.column);
+	return parts;
+}
+
+//! Spark resolves a qualified EXCEPT entry that names no relation as a path into a struct column, and rewrites
+//! that column without the field instead of dropping it. Turn those entries into a REPLACE of the column.
+void RewriteStructFieldExcludes(StarExpression &star, const identifier_set_t &relation_names) {
+	qualified_column_set_t kept_excludes;
+	vector<pair<Identifier, vector<Identifier>>> field_excludes;
+	for (auto &excluded : star.ExcludeList()) {
+		// the last qualifier is the relation name the binder matches an exclude entry against
+		if (!excluded.IsQualified() || relation_names.find(excluded.table) != relation_names.end()) {
+			kept_excludes.insert(excluded);
+			continue;
+		}
+		auto parts = ExcludedNameParts(excluded);
+		auto column = parts[0];
+		parts.erase(parts.begin());
+		field_excludes.emplace_back(std::move(column), std::move(parts));
+	}
+	if (field_excludes.empty()) {
+		return;
+	}
+	star.ExcludeListMutable() = std::move(kept_excludes);
+	for (auto &field_exclude : field_excludes) {
+		auto &column = field_exclude.first;
+		auto replacement = star.ReplaceListMutable().find(column);
+		unique_ptr<ParsedExpression> source;
+		if (replacement != star.ReplaceListMutable().end()) {
+			source = std::move(replacement->second);
+		} else if (star.RelationName().empty()) {
+			source = make_uniq<ColumnRefExpression>(column);
+		} else {
+			source = make_uniq<ColumnRefExpression>(column, star.RelationName());
+		}
+		vector<unique_ptr<ParsedExpression>> children;
+		children.push_back(std::move(source));
+		for (auto &part : field_exclude.second) {
+			children.push_back(make_uniq<ConstantExpression>(Value(part.GetIdentifierName())));
+		}
+		star.ReplaceListMutable()[column] = make_uniq<FunctionExpression>("__spark_struct_except", std::move(children));
+	}
+}
+
+void RewriteStructFieldExcludes(SelectNode &node) {
+	vector<reference<StarExpression>> stars;
+	for (auto &entry : node.select_list) {
+		CollectQualifiedExcludeStars(*entry, stars);
+	}
+	if (stars.empty()) {
+		return;
+	}
+	identifier_set_t relation_names;
+	CollectRelationNames(*node.from_table, relation_names);
+	for (auto &star : stars) {
+		RewriteStructFieldExcludes(star.get(), relation_names);
+	}
 }
 
 } // namespace
@@ -2550,6 +2655,7 @@ unique_ptr<SelectNode> PEGTransformerFactory::TransformSelectFromClause(PEGTrans
 	} else {
 		select_clause->from_table = make_uniq<EmptyTableRef>();
 	}
+	RewriteStructFieldExcludes(*select_clause);
 	return select_clause;
 }
 
@@ -2564,6 +2670,7 @@ PEGTransformerFactory::TransformFromSelectClause(PEGTransformer &transformer, un
 		result = std::move(*select_clause);
 	}
 	result->from_table = std::move(from_clause);
+	RewriteStructFieldExcludes(*result);
 	return result;
 }
 
