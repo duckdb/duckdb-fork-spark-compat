@@ -9025,6 +9025,18 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectFromInter
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
+unique_ptr<TransformResultValue>
+PEGTransformerFactory::TransformSelectKeywordAliasFromClauseInternal(PEGTransformer &transformer,
+                                                                     ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto select_clause = transformer.Transform<unique_ptr<SelectNode>>(list_pr.GetChild(0));
+	auto col_label_identifier = transformer.Transform<Identifier>(list_pr.GetChild(1));
+	auto from_clause = transformer.Transform<unique_ptr<TableRef>>(list_pr.GetChild(2));
+	auto result = TransformSelectKeywordAliasFromClause(transformer, std::move(select_clause), col_label_identifier,
+	                                                    std::move(from_clause));
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformSelectFromClauseInternal(PEGTransformer &transformer,
                                                                                           ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
@@ -12088,6 +12100,7 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"OptionalParensSimpleSelect", &PEGTransformerFactory::TransformOptionalParensSimpleSelectInternal},
 	    {"SimpleSelectParens", &PEGTransformerFactory::TransformSimpleSelectParensInternal},
 	    {"SelectFrom", &PEGTransformerFactory::TransformSelectFromInternal},
+	    {"SelectKeywordAliasFromClause", &PEGTransformerFactory::TransformSelectKeywordAliasFromClauseInternal},
 	    {"SelectFromClause", &PEGTransformerFactory::TransformSelectFromClauseInternal},
 	    {"FromSelectClause", &PEGTransformerFactory::TransformFromSelectClauseInternal},
 	    {"WithStatement", &PEGTransformerFactory::TransformWithStatementInternal},

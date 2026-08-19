@@ -1792,7 +1792,10 @@ OptionalParensSimpleSelect <- SimpleSelectParens / SimpleSelect
 SimpleSelectParens <- Parens(SimpleSelect)
 SimpleSelect <- SelectFrom WhereClause? GroupByClause? HavingClause? WindowClause? QualifyClause? SampleClause?
 
-SelectFrom <- SelectFromClause / FromSelectClause
+# Spark keywords are non-reserved, so `SELECT count(*) FROM from t` aliases count(*) as FROM; the FROM
+# clause sits inside the alternative so it fails as a unit when the keyword is the FROM clause itself
+SelectFrom <- SelectKeywordAliasFromClause / SelectFromClause / FromSelectClause
+SelectKeywordAliasFromClause <- SelectClause ColLabelIdentifier FromClause
 SelectFromClause <- SelectClause FromClause?
 FromSelectClause <- FromClause SelectClause?
 WithStatement <- ColIdOrString InsertColumnList? MaxRecursionLevel? UsingKey? 'AS' Materialized? CTEBody

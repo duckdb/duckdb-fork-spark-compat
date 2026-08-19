@@ -4082,6 +4082,11 @@ public:
 	                                           TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeSelectFromTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeSelectKeywordAliasFromClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                             TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue> FinalizeSelectKeywordAliasFromClauseTrampoline(PEGTransformer &transformer,
+	                                                                                       TransformStack &stack,
+	                                                                                       TransformStackFrame &frame);
 	static void InitializeSelectFromClauseTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                                 TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -8086,6 +8091,12 @@ public:
 	                                                               unique_ptr<SelectStatement> simple_select);
 	static unique_ptr<TransformResultValue> TransformSelectFromInternal(PEGTransformer &transformer,
 	                                                                    ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformSelectKeywordAliasFromClauseInternal(PEGTransformer &transformer,
+	                                                                                      ParseResult &parse_result);
+	static unique_ptr<SelectNode> TransformSelectKeywordAliasFromClause(PEGTransformer &transformer,
+	                                                                    unique_ptr<SelectNode> select_clause,
+	                                                                    const Identifier &col_label_identifier,
+	                                                                    unique_ptr<TableRef> from_clause);
 	static unique_ptr<TransformResultValue> TransformSelectFromClauseInternal(PEGTransformer &transformer,
 	                                                                          ParseResult &parse_result);
 	static unique_ptr<SelectNode> TransformSelectFromClause(PEGTransformer &transformer,

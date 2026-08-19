@@ -2659,6 +2659,14 @@ unique_ptr<SelectNode> PEGTransformerFactory::TransformSelectFromClause(PEGTrans
 	return select_clause;
 }
 
+unique_ptr<SelectNode> PEGTransformerFactory::TransformSelectKeywordAliasFromClause(
+    PEGTransformer &transformer, unique_ptr<SelectNode> select_clause, const Identifier &col_label_identifier,
+    unique_ptr<TableRef> from_clause) {
+	D_ASSERT(!select_clause->select_list.empty());
+	select_clause->select_list.back()->SetAlias(col_label_identifier);
+	return TransformSelectFromClause(transformer, std::move(select_clause), std::move(from_clause));
+}
+
 unique_ptr<SelectNode>
 PEGTransformerFactory::TransformFromSelectClause(PEGTransformer &transformer, unique_ptr<TableRef> from_clause,
                                                  optional<unique_ptr<SelectNode>> select_clause) {

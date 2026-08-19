@@ -2415,6 +2415,9 @@ static const TransformFrameOps SIMPLE_SELECT_OPS = {"SimpleSelect",
                                                     &PEGTransformerFactory::FinalizeSimpleSelectTrampoline};
 static const TransformFrameOps SELECT_FROM_OPS = {"SelectFrom", &PEGTransformerFactory::InitializeSelectFromTrampoline,
                                                   &PEGTransformerFactory::FinalizeSelectFromTrampoline};
+static const TransformFrameOps SELECT_KEYWORD_ALIAS_FROM_CLAUSE_OPS = {
+    "SelectKeywordAliasFromClause", &PEGTransformerFactory::InitializeSelectKeywordAliasFromClauseTrampoline,
+    &PEGTransformerFactory::FinalizeSelectKeywordAliasFromClauseTrampoline};
 static const TransformFrameOps SELECT_FROM_CLAUSE_OPS = {"SelectFromClause",
                                                          &PEGTransformerFactory::InitializeSelectFromClauseTrampoline,
                                                          &PEGTransformerFactory::FinalizeSelectFromClauseTrampoline};
@@ -3829,6 +3832,7 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"SimpleSelectParens", &SIMPLE_SELECT_PARENS_OPS},
 	    {"SimpleSelect", &SIMPLE_SELECT_OPS},
 	    {"SelectFrom", &SELECT_FROM_OPS},
+	    {"SelectKeywordAliasFromClause", &SELECT_KEYWORD_ALIAS_FROM_CLAUSE_OPS},
 	    {"SelectFromClause", &SELECT_FROM_CLAUSE_OPS},
 	    {"FromSelectClause", &FROM_SELECT_CLAUSE_OPS},
 	    {"WithStatement", &WITH_STATEMENT_OPS},
@@ -21607,6 +21611,26 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectFromTrampo
                                                                                      TransformStack &stack,
                                                                                      TransformStackFrame &frame) {
 	auto result = frame.TakeResult<unique_ptr<SelectNode>>(0);
+	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeSelectKeywordAliasFromClauseTrampoline(PEGTransformer &transformer,
+                                                                             TransformStack &stack,
+                                                                             TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	frame.ReserveChildSlots(3);
+	stack.PushFrame(list_pr.GetChild(2), FROM_CLAUSE_OPS, TransformFrameResultTarget(frame.frame_index, 2));
+	stack.PushFrame(list_pr.GetChild(1), COL_LABEL_IDENTIFIER_OPS, TransformFrameResultTarget(frame.frame_index, 1));
+	stack.PushFrame(list_pr.GetChild(0), SELECT_CLAUSE_OPS, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeSelectKeywordAliasFromClauseTrampoline(
+    PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame) {
+	auto select_clause = frame.TakeResult<unique_ptr<SelectNode>>(0);
+	auto col_label_identifier = frame.TakeResult<Identifier>(1);
+	auto from_clause = frame.TakeResult<unique_ptr<TableRef>>(2);
+	auto result = TransformSelectKeywordAliasFromClause(transformer, std::move(select_clause), col_label_identifier,
+	                                                    std::move(from_clause));
 	return make_uniq<TypedTransformResult<unique_ptr<SelectNode>>>(std::move(result));
 }
 
