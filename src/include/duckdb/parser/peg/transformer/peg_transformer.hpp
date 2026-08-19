@@ -1048,6 +1048,14 @@ public:
 	                                              TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
 	FinalizeTypeModifiersTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeTypeModifierTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                             TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeTypeModifierTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
+	static void InitializeAnyTypeModifierTrampoline(PEGTransformer &transformer, TransformStack &stack,
+	                                                TransformStackFrame &frame);
+	static unique_ptr<TransformResultValue>
+	FinalizeAnyTypeModifierTrampoline(PEGTransformer &transformer, TransformStack &stack, TransformStackFrame &frame);
 	static void InitializeRowTypeTrampoline(PEGTransformer &transformer, TransformStack &stack,
 	                                        TransformStackFrame &frame);
 	static unique_ptr<TransformResultValue>
@@ -5494,7 +5502,12 @@ public:
 	static unique_ptr<TransformResultValue> TransformTypeModifiersInternal(PEGTransformer &transformer,
 	                                                                       ParseResult &parse_result);
 	static vector<unique_ptr<ParsedExpression>>
-	TransformTypeModifiers(PEGTransformer &transformer, optional<vector<unique_ptr<ParsedExpression>>> expression);
+	TransformTypeModifiers(PEGTransformer &transformer, optional<vector<unique_ptr<ParsedExpression>>> type_modifier);
+	static unique_ptr<TransformResultValue> TransformTypeModifierInternal(PEGTransformer &transformer,
+	                                                                      ParseResult &parse_result);
+	static unique_ptr<TransformResultValue> TransformAnyTypeModifierInternal(PEGTransformer &transformer,
+	                                                                         ParseResult &parse_result);
+	static unique_ptr<ParsedExpression> TransformAnyTypeModifier(PEGTransformer &transformer);
 	static unique_ptr<TransformResultValue> TransformRowTypeInternal(PEGTransformer &transformer,
 	                                                                 ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformRowType(PEGTransformer &transformer,

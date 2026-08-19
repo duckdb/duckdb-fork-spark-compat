@@ -383,6 +383,12 @@ static const TransformFrameOps SCHEMA_RESERVED_TYPE_NAME_OPS = {
 static const TransformFrameOps TYPE_MODIFIERS_OPS = {"TypeModifiers",
                                                      &PEGTransformerFactory::InitializeTypeModifiersTrampoline,
                                                      &PEGTransformerFactory::FinalizeTypeModifiersTrampoline};
+static const TransformFrameOps TYPE_MODIFIER_OPS = {"TypeModifier",
+                                                    &PEGTransformerFactory::InitializeTypeModifierTrampoline,
+                                                    &PEGTransformerFactory::FinalizeTypeModifierTrampoline};
+static const TransformFrameOps ANY_TYPE_MODIFIER_OPS = {"AnyTypeModifier",
+                                                        &PEGTransformerFactory::InitializeAnyTypeModifierTrampoline,
+                                                        &PEGTransformerFactory::FinalizeAnyTypeModifierTrampoline};
 static const TransformFrameOps ROW_TYPE_OPS = {"RowType", &PEGTransformerFactory::InitializeRowTypeTrampoline,
                                                &PEGTransformerFactory::FinalizeRowTypeTrampoline};
 static const TransformFrameOps SETOF_TYPE_OPS = {"SetofType", &PEGTransformerFactory::InitializeSetofTypeTrampoline,
@@ -3122,6 +3128,8 @@ const case_insensitive_map_t<const TransformFrameOps *> &PEGTransformerFactory::
 	    {"CatalogReservedSchemaTypeName", &CATALOG_RESERVED_SCHEMA_TYPE_NAME_OPS},
 	    {"SchemaReservedTypeName", &SCHEMA_RESERVED_TYPE_NAME_OPS},
 	    {"TypeModifiers", &TYPE_MODIFIERS_OPS},
+	    {"TypeModifier", &TYPE_MODIFIER_OPS},
+	    {"AnyTypeModifier", &ANY_TYPE_MODIFIER_OPS},
 	    {"RowType", &ROW_TYPE_OPS},
 	    {"SetofType", &SETOF_TYPE_OPS},
 	    {"UnionType", &UNION_TYPE_OPS},
@@ -6636,7 +6644,7 @@ void PEGTransformerFactory::InitializeTypeModifiersTrampoline(PEGTransformer &tr
 		frame.ReserveChildSlots(1 + dynamic_child_count - 1);
 		for (idx_t i = list_items.size(); i > 0; i--) {
 			auto child_idx = i - 1;
-			stack.PushFrame(list_items[child_idx].get(), EXPRESSION_OPS,
+			stack.PushFrame(list_items[child_idx].get(), TYPE_MODIFIER_OPS,
 			                TransformFrameResultTarget(frame.frame_index, 0 + child_idx));
 		}
 	} else {
@@ -6654,17 +6662,50 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeTypeModifiersTra
 		auto dynamic_list_items = ExtractParseResultsFromList(dynamic_list_opt.GetResult());
 		dynamic_child_count = dynamic_list_items.size();
 	}
-	optional<vector<unique_ptr<ParsedExpression>>> expression {};
-	auto &expression_opt = ExtractResultFromParens(list_pr.GetChild(0)).Cast<OptionalParseResult>();
-	if (expression_opt.HasResult()) {
-		vector<unique_ptr<ParsedExpression>> expression_value;
+	optional<vector<unique_ptr<ParsedExpression>>> type_modifier {};
+	auto &type_modifier_opt = ExtractResultFromParens(list_pr.GetChild(0)).Cast<OptionalParseResult>();
+	if (type_modifier_opt.HasResult()) {
+		vector<unique_ptr<ParsedExpression>> type_modifier_value;
 		for (idx_t i = 0; i < 0 + dynamic_child_count; i++) {
-			expression_value.push_back(frame.TakeResult<unique_ptr<ParsedExpression>>(i));
+			type_modifier_value.push_back(frame.TakeResult<unique_ptr<ParsedExpression>>(i));
 		}
-		expression = std::move(expression_value);
+		type_modifier = std::move(type_modifier_value);
 	}
-	auto result = TransformTypeModifiers(transformer, std::move(expression));
+	auto result = TransformTypeModifiers(transformer, std::move(type_modifier));
 	return make_uniq<TypedTransformResult<vector<unique_ptr<ParsedExpression>>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeTypeModifierTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                             TransformStackFrame &frame) {
+	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto &choice_result = choice_pr.GetResult();
+	frame.ReserveChildSlots(1);
+	auto &ops_map = PEGTransformerFactory::GeneratedTrampolineOps();
+	auto ops_entry = ops_map.find(choice_result.name);
+	if (ops_entry == ops_map.end()) {
+		throw InternalException("No trampoline ops registered for rule '%s'", choice_result.name);
+	}
+	stack.PushFrame(choice_result, *ops_entry->second, TransformFrameResultTarget(frame.frame_index, 0));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeTypeModifierTrampoline(PEGTransformer &transformer,
+                                                                                       TransformStack &stack,
+                                                                                       TransformStackFrame &frame) {
+	auto result = frame.TakeResult<unique_ptr<ParsedExpression>>(0);
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+void PEGTransformerFactory::InitializeAnyTypeModifierTrampoline(PEGTransformer &transformer, TransformStack &stack,
+                                                                TransformStackFrame &frame) {
+	frame.ReserveChildSlots(0);
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeAnyTypeModifierTrampoline(PEGTransformer &transformer,
+                                                                                          TransformStack &stack,
+                                                                                          TransformStackFrame &frame) {
+	auto result = TransformAnyTypeModifier(transformer);
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
 void PEGTransformerFactory::InitializeRowTypeTrampoline(PEGTransformer &transformer, TransformStack &stack,

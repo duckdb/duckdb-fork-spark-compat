@@ -167,7 +167,9 @@ QualifiedTypeName <- CatalogReservedSchemaTypeName / SchemaReservedTypeName / Ty
 TypeNameAsQualifiedName <- TypeName
 CatalogReservedSchemaTypeName <- CatalogQualification ReservedSchemaQualification ReservedTypeName
 SchemaReservedTypeName <- SchemaQualification ReservedTypeName
-TypeModifiers <- Parens(List(Expression)?)
+TypeModifiers <- Parens(List(TypeModifier)?)
+TypeModifier <- AnyTypeModifier / Expression
+AnyTypeModifier <- 'ANY'
 RowType <- RowOrStruct ColIdTypeList?
 SetofType <- 'SETOF' Type
 UnionType <- 'UNION' ColIdTypeList

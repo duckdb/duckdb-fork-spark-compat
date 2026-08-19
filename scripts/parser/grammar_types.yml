@@ -535,6 +535,8 @@ Expression:
     - SimpleType
     - CharacterSimpleType
     - QualifiedSimpleType
+    - TypeModifier
+    - AnyTypeModifier
     - MapType
     - MapParensListType
     - MapAngleBracketsListType

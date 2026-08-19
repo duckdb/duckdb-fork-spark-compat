@@ -1306,20 +1306,34 @@ PEGTransformerFactory::TransformSchemaReservedTypeNameInternal(PEGTransformer &t
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformTypeModifiersInternal(PEGTransformer &transformer,
                                                                                        ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
-	optional<vector<unique_ptr<ParsedExpression>>> expression {};
-	auto &expression_opt = ExtractResultFromParens(list_pr.GetChild(0)).Cast<OptionalParseResult>();
-	if (expression_opt.HasResult()) {
-		vector<unique_ptr<ParsedExpression>> expression_value;
-		auto expression_value_items_1 = ExtractParseResultsFromList(expression_opt.GetResult());
-		for (auto &expression_value_item_1 : expression_value_items_1) {
-			auto expression_value_value_1 =
-			    transformer.Transform<unique_ptr<ParsedExpression>>(expression_value_item_1.get());
-			expression_value.push_back(std::move(expression_value_value_1));
+	optional<vector<unique_ptr<ParsedExpression>>> type_modifier {};
+	auto &type_modifier_opt = ExtractResultFromParens(list_pr.GetChild(0)).Cast<OptionalParseResult>();
+	if (type_modifier_opt.HasResult()) {
+		vector<unique_ptr<ParsedExpression>> type_modifier_value;
+		auto type_modifier_value_items_1 = ExtractParseResultsFromList(type_modifier_opt.GetResult());
+		for (auto &type_modifier_value_item_1 : type_modifier_value_items_1) {
+			auto type_modifier_value_value_1 =
+			    transformer.Transform<unique_ptr<ParsedExpression>>(type_modifier_value_item_1.get());
+			type_modifier_value.push_back(std::move(type_modifier_value_value_1));
 		}
-		expression = std::move(expression_value);
+		type_modifier = std::move(type_modifier_value);
 	}
-	auto result = TransformTypeModifiers(transformer, std::move(expression));
+	auto result = TransformTypeModifiers(transformer, std::move(type_modifier));
 	return make_uniq<TypedTransformResult<vector<unique_ptr<ParsedExpression>>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformTypeModifierInternal(PEGTransformer &transformer,
+                                                                                      ParseResult &parse_result) {
+	auto &list_pr = parse_result.Cast<ListParseResult>();
+	auto &choice_pr = list_pr.Child<ChoiceParseResult>(0);
+	auto result = transformer.Transform<unique_ptr<ParsedExpression>>(choice_pr.GetResult());
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
+}
+
+unique_ptr<TransformResultValue> PEGTransformerFactory::TransformAnyTypeModifierInternal(PEGTransformer &transformer,
+                                                                                         ParseResult &parse_result) {
+	auto result = TransformAnyTypeModifier(transformer);
+	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformRowTypeInternal(PEGTransformer &transformer,
@@ -11391,6 +11405,8 @@ void PEGTransformerFactory::RegisterGenerated() {
 	    {"CatalogReservedSchemaTypeName", &PEGTransformerFactory::TransformCatalogReservedSchemaTypeNameInternal},
 	    {"SchemaReservedTypeName", &PEGTransformerFactory::TransformSchemaReservedTypeNameInternal},
 	    {"TypeModifiers", &PEGTransformerFactory::TransformTypeModifiersInternal},
+	    {"TypeModifier", &PEGTransformerFactory::TransformTypeModifierInternal},
+	    {"AnyTypeModifier", &PEGTransformerFactory::TransformAnyTypeModifierInternal},
 	    {"RowType", &PEGTransformerFactory::TransformRowTypeInternal},
 	    {"SetofType", &PEGTransformerFactory::TransformSetofTypeInternal},
 	    {"UnionType", &PEGTransformerFactory::TransformUnionTypeInternal},

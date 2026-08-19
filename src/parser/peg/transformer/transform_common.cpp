@@ -241,16 +241,20 @@ PEGTransformerFactory::TransformNumericModType(PEGTransformer &transformer,
 
 vector<unique_ptr<ParsedExpression>>
 PEGTransformerFactory::TransformTypeModifiers(PEGTransformer &transformer,
-                                              optional<vector<unique_ptr<ParsedExpression>>> expression) {
-	if (!expression) {
+                                              optional<vector<unique_ptr<ParsedExpression>>> type_modifier) {
+	if (!type_modifier) {
 		return vector<unique_ptr<ParsedExpression>> {};
 	}
-	for (auto &expr : *expression) {
+	for (auto &expr : *type_modifier) {
 		if (expr->GetExpressionClass() != ExpressionClass::CONSTANT) {
 			throw ParserException("Expected a constant as type modifier");
 		}
 	}
-	return std::move(*expression);
+	return std::move(*type_modifier);
+}
+
+unique_ptr<ParsedExpression> PEGTransformerFactory::TransformAnyTypeModifier(PEGTransformer &transformer) {
+	return make_uniq<ConstantExpression>(Value("ANY"));
 }
 
 unique_ptr<ParsedExpression>
