@@ -361,7 +361,10 @@ PEGTransformerFactory::TransformGeometryType(PEGTransformer &transformer,
 		throw ParserException("Expected a constant as type modifier");
 	}
 	geo_children.push_back(std::move(geo_modifier));
-	return make_uniq<TypeExpression>(Identifier("GEOMETRY"), std::move(geo_children));
+	// a modified GEOMETRY resolves in the system catalog, the only schema an extension can take the type over in
+	return make_uniq<TypeExpression>(
+	    QualifiedName(Identifier::SystemCatalog(), Identifier::DefaultSchema(), Identifier("GEOMETRY")),
+	    std::move(geo_children));
 }
 
 unique_ptr<ParsedExpression> PEGTransformerFactory::TransformVariantType(PEGTransformer &transformer) {
