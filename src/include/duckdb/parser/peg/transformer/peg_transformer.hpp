@@ -5435,7 +5435,7 @@ public:
 	static unique_ptr<TransformResultValue> TransformGeometryTypeInternal(PEGTransformer &transformer,
 	                                                                      ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformGeometryType(PEGTransformer &transformer,
-	                                                          optional<unique_ptr<ParsedExpression>> expression);
+	                                                          optional<unique_ptr<ParsedExpression>> type_modifier);
 	static unique_ptr<TransformResultValue> TransformVariantTypeInternal(PEGTransformer &transformer,
 	                                                                     ParseResult &parse_result);
 	static unique_ptr<ParsedExpression> TransformVariantType(PEGTransformer &transformer);

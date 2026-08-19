@@ -136,7 +136,7 @@ const char INLINED_PEG_GRAMMAR[] = {
 	"HourToSecond <- HourKeyword 'TO' SecondKeyword\n"
 	"MinuteToSecond <- MinuteKeyword 'TO' SecondKeyword\n"
 	"BitType <- 'BIT' 'VARYING'? Parens(List(Expression))?\n"
-	"GeometryType <- 'GEOMETRY' Parens(Expression)?\n"
+	"GeometryType <- 'GEOMETRY' Parens(TypeModifier)?\n"
 	"VariantType <- 'VARIANT'\n"
 	"NumericType <- SimpleNumericType / DecimalNumericType\n"
 	"SimpleNumericType <- IntType / IntegerType / SmallintType /\n"

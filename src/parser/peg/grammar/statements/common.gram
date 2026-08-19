@@ -142,7 +142,7 @@ HourToSecond <- HourKeyword 'TO' SecondKeyword
 MinuteToSecond <- MinuteKeyword 'TO' SecondKeyword
 
 BitType <- 'BIT' 'VARYING'? Parens(List(Expression))?
-GeometryType <- 'GEOMETRY' Parens(Expression)?
+GeometryType <- 'GEOMETRY' Parens(TypeModifier)?
 VariantType <- 'VARIANT'
 
 NumericType <- SimpleNumericType / DecimalNumericType

@@ -351,11 +351,11 @@ PEGTransformerFactory::TransformRowType(PEGTransformer &transformer,
 
 unique_ptr<ParsedExpression>
 PEGTransformerFactory::TransformGeometryType(PEGTransformer &transformer,
-                                             optional<unique_ptr<ParsedExpression>> expression) {
-	if (!expression) {
+                                             optional<unique_ptr<ParsedExpression>> type_modifier) {
+	if (!type_modifier) {
 		return make_uniq<TypeExpression>(Identifier("GEOMETRY"), vector<unique_ptr<ParsedExpression>> {});
 	}
-	auto geo_modifier = std::move(*expression);
+	auto geo_modifier = std::move(*type_modifier);
 	vector<unique_ptr<ParsedExpression>> geo_children;
 	if (geo_modifier->GetExpressionClass() != ExpressionClass::CONSTANT) {
 		throw ParserException("Expected a constant as type modifier");

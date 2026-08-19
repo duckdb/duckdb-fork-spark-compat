@@ -1113,14 +1113,14 @@ unique_ptr<TransformResultValue> PEGTransformerFactory::TransformBitTypeInternal
 unique_ptr<TransformResultValue> PEGTransformerFactory::TransformGeometryTypeInternal(PEGTransformer &transformer,
                                                                                       ParseResult &parse_result) {
 	auto &list_pr = parse_result.Cast<ListParseResult>();
-	optional<unique_ptr<ParsedExpression>> expression {};
-	auto &expression_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
-	if (expression_opt.HasResult()) {
-		auto expression_value =
-		    transformer.Transform<unique_ptr<ParsedExpression>>(ExtractResultFromParens(expression_opt.GetResult()));
-		expression = std::move(expression_value);
+	optional<unique_ptr<ParsedExpression>> type_modifier {};
+	auto &type_modifier_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (type_modifier_opt.HasResult()) {
+		auto type_modifier_value =
+		    transformer.Transform<unique_ptr<ParsedExpression>>(ExtractResultFromParens(type_modifier_opt.GetResult()));
+		type_modifier = std::move(type_modifier_value);
 	}
-	auto result = TransformGeometryType(transformer, std::move(expression));
+	auto result = TransformGeometryType(transformer, std::move(type_modifier));
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 

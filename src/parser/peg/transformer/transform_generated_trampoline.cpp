@@ -6273,9 +6273,9 @@ void PEGTransformerFactory::InitializeGeometryTypeTrampoline(PEGTransformer &tra
                                                              TransformStackFrame &frame) {
 	auto &list_pr = frame.parse_result.Cast<ListParseResult>();
 	frame.ReserveChildSlots(1);
-	auto &expression_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
-	if (expression_opt.HasResult()) {
-		stack.PushFrame(ExtractResultFromParens(expression_opt.GetResult()), EXPRESSION_OPS,
+	auto &type_modifier_opt = list_pr.GetChild(1).Cast<OptionalParseResult>();
+	if (type_modifier_opt.HasResult()) {
+		stack.PushFrame(ExtractResultFromParens(type_modifier_opt.GetResult()), TYPE_MODIFIER_OPS,
 		                TransformFrameResultTarget(frame.frame_index, 0));
 	}
 }
@@ -6283,11 +6283,11 @@ void PEGTransformerFactory::InitializeGeometryTypeTrampoline(PEGTransformer &tra
 unique_ptr<TransformResultValue> PEGTransformerFactory::FinalizeGeometryTypeTrampoline(PEGTransformer &transformer,
                                                                                        TransformStack &stack,
                                                                                        TransformStackFrame &frame) {
-	optional<unique_ptr<ParsedExpression>> expression {};
+	optional<unique_ptr<ParsedExpression>> type_modifier {};
 	if (frame.child_results[0]) {
-		expression = frame.TakeResult<unique_ptr<ParsedExpression>>(0);
+		type_modifier = frame.TakeResult<unique_ptr<ParsedExpression>>(0);
 	}
-	auto result = TransformGeometryType(transformer, std::move(expression));
+	auto result = TransformGeometryType(transformer, std::move(type_modifier));
 	return make_uniq<TypedTransformResult<unique_ptr<ParsedExpression>>>(std::move(result));
 }
 
